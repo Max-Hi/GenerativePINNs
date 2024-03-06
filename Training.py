@@ -4,7 +4,7 @@ from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
 
-from PINN import PhysicsInformedNN
+from PINN import PINN_GAN, Discriminator, Generator
 
 # Hyperparameters
 noise = 0.0        
@@ -15,7 +15,8 @@ N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
-layers = [2, 100, 100, 100, 100, 2]
+layers_G = [2, 100, 100, 100, 100, 2]
+layers_D = [4, 100, 100, 2]
 
 # Load data from simulated dataset
 data = scipy.io.loadmat('./Data/NLS.mat')
@@ -46,12 +47,12 @@ X_f = lb + (ub-lb)*lhs(2, N_f)
 X0 = np.concatenate((x0, np.zeros_like(x0, dtype=np.float32)), 1) # (x, 0)
 
 # boundary points
-boundary = np.hstack((lb, ub))
+boundary = np.vstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
 # Train the model
-model = PhysicsInformedNN(X0, Y0, X_f, X_lb, X_ub, boundary, layers)
+model = PINN_GAN(X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
 model.train(2000)
 print('Training time: %.4f' % (time.time() - start_time))

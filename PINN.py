@@ -12,14 +12,20 @@ import torch.nn as nn
 from torch.optim import adam
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(device)
+device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+        )
+print(f"Using {device} device")
 
 
 # Initialize NNs
 class Generator(nn.Module):
-    
     def __init__(self, layers_G):
+        super(Generator, self).__init__()
         self.layers = layers_G
         self.model = nn.Sequential()
         # TODO: baseline structure to be altered 
@@ -30,21 +36,21 @@ class Generator(nn.Module):
         self.model = self.model.double()
 
 class Discriminator(nn.Module):
-    
     def __init__(self, layers_D):
+        super(Discriminator, self).__init__()
         self.layers = layers_D
         # NOTE: discriminator input dim = dim(x) * dim(G(x))
         self.model = nn.Sequential()
         # TODO: baseline structure to be altered 
-        for l in range(0, len(self.layers) - 2):
+        for l in range(0, len(self.layers) - 1):
             self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
             self.model.add_module("tanh" + str(l), nn.Tanh())
-        self.model.add_module("sigmoid" + str(len(self.layers) - 2), nn.sigmoid(self.layers[-2], self.layers[-1]))
+        self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid())
         self.model = self.model.double() 
 
 
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_lb, X_ub, bounary, layers_G, layers_D):
+    def __init__(self, X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -52,7 +58,7 @@ class PINN_GAN(nn.Module):
         X_lb: the lower boundary, size (N_b, 2)
         X_ub: the upper boundary, size (N_b, 2)
         boundary: the lower and upper boundary, size (2, 2) : [(x_min, t_min), (x_max, t_max)]
-        layers: the number of neurons in each layer
+        layers: the number of neurons in each layer (_D for discriminator, _G for generator)
         """
         super(PINN_GAN, self).__init__()
 
@@ -74,8 +80,10 @@ class PINN_GAN(nn.Module):
         self.t_f = torch.tensor(X_f[:, 1:2], requires_grad=True)
         
         # Bounds
-        self.lb = torch.tensor(bounary[:, 0:1])
-        self.ub = torch.tensor(bounary[:, 1:2])
+        print(boundary)
+        print(boundary.shape)
+        self.lb = torch.tensor(boundary[:, 0:1])
+        self.ub = torch.tensor(boundary[:, 1:2])
 
         # Sizes
         self.layers_D = layers_D
@@ -174,14 +182,16 @@ class PINN_GAN(nn.Module):
 
     def train(self, epochs = 1e+4, lr = 1e-3):
         # Optimizer
-        optimizer = adam.Adam(self.model.parameters(), lr=lr)
+        optimizer_G = adam.Adam(self.generator.parameters(), lr=lr)
+        optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr)
         
         # Training
         for epoch in tqdm(range(epochs)):
-            optimizer.zero_grad()
-            loss = self.loss_function()
+            # TODO
+            optimizer_G.zero_grad()
+            loss = self.loss_G(1)
             loss.backward()
-            optimizer.step()
+            optimizer_G.step()
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss: %.3e' % (epoch, loss.item()))
 
