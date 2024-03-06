@@ -5,6 +5,8 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from scipy.integrate import odeint
 
+import matplotlib.pyplot as plt
+
 import torch
 import torch.nn as nn
 from torch.optim import adam
@@ -15,8 +17,8 @@ print(device)
 
 
 
-class PhysicsInformedNN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_lb, X_ub, bounary, layers):
+class PINN_GAN(nn.Module):
+    def __init__(self, X0, Y0, X_f, X_lb, X_ub, bounary, layers_G, layers_D):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -26,7 +28,7 @@ class PhysicsInformedNN(nn.Module):
         boundary: the lower and upper boundary, size (2, 2) : [(x_min, t_min), (x_max, t_max)]
         layers: the number of neurons in each layer
         """
-        super(PhysicsInformedNN, self).__init__()
+        super(PINN_GAN, self).__init__()
 
         # Initial Data
         self.x0 = torch.tensor(X0[:, 0:1], requires_grad=True)
@@ -48,29 +50,57 @@ class PhysicsInformedNN(nn.Module):
         # Bounds
         self.lb = torch.tensor(bounary[:, 0:1])
         self.ub = torch.tensor(bounary[:, 1:2])
+
+        # Sizes
+        self.layers_D = layers_D
+        self.layers_G = layers_G
         
         # Initialize NNs
-        self.layers = layers
-        self.model = nn.Sequential()
-        for l in range(0, len(layers) - 2):
-            self.model.add_module("linear" + str(l), nn.Linear(layers[l], layers[l+1]))
-            self.model.add_module("tanh" + str(l), nn.Tanh())
-        self.model.add_module("linear" + str(len(layers) - 2), nn.Linear(layers[-2], layers[-1]))
-        self.model = self.model.double()
+        class Generator(nn.Module):
+            
+            def __init__(self):
+                self.PINN = PINN_GAN()
+                self.layers = self.PINN.layers_G
+                self.model = nn.Sequential()
+                # TODO: baseline structure to be altered 
+                for l in range(0, len(layers) - 2):
+                    self.model.add_module("linear" + str(l), nn.Linear(layers[l], layers[l+1]))
+                    self.model.add_module("tanh" + str(l), nn.Tanh())
+                self.model.add_module("linear" + str(len(layers) - 2), nn.Linear(layers[-2], layers[-1]))
+                self.model = self.model.double()
+
+        class Discriminator(nn.Module):
+            
+            def __init__(self):
+                self.PINN = PINN_GAN()
+                self.layers = self.PINN.layers_D
+                # NOTE: discriminator input dim = dim(x) * dim(G(x))
+                self.model = nn.Sequential()
+                # TODO: baseline structure to be altered 
+                for l in range(0, len(layers) - 2):
+                    self.model.add_module("linear" + str(l), nn.Linear(layers[l], layers[l+1]))
+                    self.model.add_module("tanh" + str(l), nn.Tanh())
+                self.model.add_module("sigmoid" + str(len(layers) - 2), nn.sigmoid(layers[-2], layers[-1]))
+                self.model = self.model.double()           
 
     # calculate the function h(x, t) using neural nets
+    # NOTE: regard net_uv as baseline  
     def net_uv(self, x, t):
         X = torch.cat([x, t], dim=1)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
-        
-        uv = self.model(H)
+        self.H = H
+        self.uv = uv
+        # NOTE: ????
+        uv = self.Generator.model(H)
         u = uv[:, 0:1]
         v = uv[:, 1:2]
         u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
         v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
         return u, v, u_x, v_x
 
-    # compute the Schrodinger function on the collacation points
+    # compute the Schrodinger function on the collocation points
+    # TODO: adjust according to different equation
+    # TODO: pass function as parameter in init config
     def net_f_uv(self, x, t):
         u, v, u_x, v_x = self.net_uv(x, t)
         u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
@@ -86,9 +116,17 @@ class PhysicsInformedNN(nn.Module):
         u, v, _, _ = self.net_uv(x, t)
         f_u, f_v = self.net_f_uv(x, t)
         return u, v, f_u, f_v
+    
 
-    def loss_function(self):
+    def loss_G(self, loss_d):
+        ''' 
+        input dim for G: 
+        (x, t, u, v)
+        possible error of dimensionality noted.
+        '''
+        # TODO: call util.py for point loss
         loss = nn.MSELoss()
+        loss_l1 = nn.L1Loss()
         self.u0_pred, self.v0_pred, _, _ = self.net_uv(self.x0, self.t0)
         
         self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
@@ -97,13 +135,41 @@ class PhysicsInformedNN(nn.Module):
         self.f_u_pred, self.f_v_pred = self.net_f_uv(self.x_f, self.t_f)
         
         # initial condition + boundary condition + PDE constraint
+
         MSE = loss(self.u0_pred, self.u0) + loss(self.v0_pred, self.v0) + \
             loss(self.u_lb_pred, self.u_ub_pred) + loss(self.v_lb_pred, self.v_ub_pred) + \
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred) + \
             loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred))
+        
+        input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
+        D_input = self.Discriminator.model(input_D)
+        L_D = loss_l1(torch.ones_like(D_input), 
+                      D_input)
+        # NOTE: dimensionality
+        return MSE + L_D
 
-        return MSE
-    
+        # TODO : implement boundary data and boundary condition for GAN
+        # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
+
+    def loss_D(self):
+        '''
+        input dim for D: 
+        (x, t, u, v)
+        possible error of dimensionality noted.
+        '''
+        #TODO 
+        loss = nn.L1Loss()
+        discriminator_T = self.Discriminator.model(
+            torch.concat((self.x0, self.t0, self.u0, self.v0), 1)
+            )
+
+        discriminator_L = self.Discriminator.model(
+            torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
+            )
+        loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
+                loss(discriminator_L, torch.ones_like(discriminator_L))
+        return loss_D
+
     def train(self, epochs = 1e+4, lr = 1e-3):
         # Optimizer
         optimizer = adam.Adam(self.model.parameters(), lr=lr)
