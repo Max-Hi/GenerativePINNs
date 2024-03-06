@@ -2,6 +2,9 @@ import numpy as np
 import scipy.io
 from pyDOE import lhs
 import time
+import matplotlib.pyplot as plt
+
+from PINN import PhysicsInformedNN
 
 # Hyperparameters
 noise = 0.0        
@@ -43,7 +46,7 @@ X_f = lb + (ub-lb)*lhs(2, N_f)
 X0 = np.concatenate((x0, np.zeros_like(x0, dtype=np.float32)), 1) # (x, 0)
 
 # boundary points
-boundary = np.hstack(lb, ub)
+boundary = np.hstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
