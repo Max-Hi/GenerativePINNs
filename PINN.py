@@ -16,6 +16,32 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 
+# Initialize NNs
+class Generator(nn.Module):
+    
+    def __init__(self, layers_G):
+        self.layers = layers_G
+        self.model = nn.Sequential()
+        # TODO: baseline structure to be altered 
+        for l in range(0, len(self.layers) - 2):
+            self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
+            self.model.add_module("tanh" + str(l), nn.Tanh())
+        self.model.add_module("linear" + str(len(self.layers) - 2), nn.Linear(self.layers[-2], self.layers[-1]))
+        self.model = self.model.double()
+
+class Discriminator(nn.Module):
+    
+    def __init__(self, layers_D):
+        self.layers = layers_D
+        # NOTE: discriminator input dim = dim(x) * dim(G(x))
+        self.model = nn.Sequential()
+        # TODO: baseline structure to be altered 
+        for l in range(0, len(self.layers) - 2):
+            self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
+            self.model.add_module("tanh" + str(l), nn.Tanh())
+        self.model.add_module("sigmoid" + str(len(self.layers) - 2), nn.sigmoid(self.layers[-2], self.layers[-1]))
+        self.model = self.model.double() 
+
 
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_lb, X_ub, bounary, layers_G, layers_D):
@@ -55,33 +81,9 @@ class PINN_GAN(nn.Module):
         self.layers_D = layers_D
         self.layers_G = layers_G
         
-        # Initialize NNs
-        class Generator(nn.Module):
-            
-            def __init__(self):
-                self.PINN = PINN_GAN()
-                self.layers = self.PINN.layers_G
-                self.model = nn.Sequential()
-                # TODO: baseline structure to be altered 
-                for l in range(0, len(layers) - 2):
-                    self.model.add_module("linear" + str(l), nn.Linear(layers[l], layers[l+1]))
-                    self.model.add_module("tanh" + str(l), nn.Tanh())
-                self.model.add_module("linear" + str(len(layers) - 2), nn.Linear(layers[-2], layers[-1]))
-                self.model = self.model.double()
-
-        class Discriminator(nn.Module):
-            
-            def __init__(self):
-                self.PINN = PINN_GAN()
-                self.layers = self.PINN.layers_D
-                # NOTE: discriminator input dim = dim(x) * dim(G(x))
-                self.model = nn.Sequential()
-                # TODO: baseline structure to be altered 
-                for l in range(0, len(layers) - 2):
-                    self.model.add_module("linear" + str(l), nn.Linear(layers[l], layers[l+1]))
-                    self.model.add_module("tanh" + str(l), nn.Tanh())
-                self.model.add_module("sigmoid" + str(len(layers) - 2), nn.sigmoid(layers[-2], layers[-1]))
-                self.model = self.model.double()           
+        self.generator = Generator(self.layers_G)
+        self.discriminator = Discriminator(self.layers_D)
+                  
 
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
