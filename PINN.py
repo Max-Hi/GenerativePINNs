@@ -52,7 +52,6 @@ class Discriminator(nn.Module):
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D):
         """
-        DGL: f(x,x'...t)=0
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
         X_f: the collocation points with time, size (Nf, 2)
@@ -63,6 +62,11 @@ class PINN_GAN(nn.Module):
         """
         super(PINN_GAN, self).__init__()
 
+        print("x0")
+        print(X0, X0.shape)
+        print("y0")
+        print(Y0, Y0.shape)
+        
         # Initial Data
         self.x0 = torch.tensor(X0[:, 0:1], requires_grad=True)
         self.t0 = torch.tensor(X0[:, 1:2], requires_grad=True)
@@ -81,11 +85,15 @@ class PINN_GAN(nn.Module):
         self.t_f = torch.tensor(X_f[:, 1:2], requires_grad=True)
         
         # Bounds
-        print(boundary)
-        print(boundary.shape)
         self.lb = torch.tensor(boundary[:, 0:1])
         self.ub = torch.tensor(boundary[:, 1:2])
 
+        # weights for the point weigthing algorithm
+        n_boundary_conditions = 2 # EDIT manually
+        M = 50 # EDIT manually the numnber of collocation points
+        self.domain_weights = torch.full((M,), 1/M)
+        self.boundary_weights = [torch.full((M,), 1/M)]*n_boundary_conditions
+        
         # Sizes
         self.layers_D = layers_D
         self.layers_G = layers_G
@@ -128,11 +136,18 @@ class PINN_GAN(nn.Module):
         return u, v, f_u, f_v
     
     def beta(self, x, t, u, e):
+        '''
+        A function that differentiates between easy to learn and hard to learn points.
+        It is used for the weightupdate. 
+        x: x value of collocation points
+        t: time of collocation points
+        u: function value at collocation points (If N is the network we are trying to achieve N=u and we have certain values u(x_i) given that are in this variable)
+        e: a hyperparameter that is a meassure for the exactness to which N should approximate u
+        '''
         if abs(self.forward(x,t)[0]-u)**2 <= e:
             return 1
         else:
             return -1
-
 
     def loss_G(self, loss_d):
         ''' 
