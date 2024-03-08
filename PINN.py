@@ -54,7 +54,8 @@ class Discriminator(nn.Module):
         self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid())
         self.model = self.model.double() 
 
-
+    def forward(self, x):
+        return self.model(x)
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D):
         """
@@ -121,7 +122,7 @@ class PINN_GAN(nn.Module):
         self.uv = uv
         u = uv[:, 0:1]
         v = uv[:, 1:2]
-        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0] # create_graph=True
         v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
         return u, v, u_x, v_x
 
@@ -150,7 +151,7 @@ class PINN_GAN(nn.Module):
         f_u_pred and f_v_pred are the values of the DGL function which should be close to zero
         e: a hyperparameter that is a meassure for the exactness to which N should approximate u
         '''
-        return (f_u_pred**2 + f_v_pred**2 <= e).to(torch.float16) - (f_u_pred**2 + f_v_pred**2 > e).to(torch.float16)
+        return (f_u_pred**2 + f_v_pred**2 <= e).to(torch.float32) - (f_u_pred**2 + f_v_pred**2 > e).to(torch.float32)
         
     def weight_update(self, f_u_pred, f_v_pred, e):
         '''
@@ -167,7 +168,8 @@ class PINN_GAN(nn.Module):
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
             # print("alpha: ", alpha)
-            w_new = w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1) / torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1)) # the sum sums along the values of w
+            w_new = w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e).to(torch.float32)).transpose(0,1) / \
+                torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e).to(torch.float32)).transpose(0,1)) # the sum sums along the values of w
             '''print("w_new partly 1: ", w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1))
             print("w_new partly 2: ", torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1)))
             print("w_new: ", w_new )'''
@@ -177,7 +179,7 @@ class PINN_GAN(nn.Module):
             else:
                 self.boundary_weights[index-1] = w_new
 
-    def loss_G(self, loss_d):
+    def loss_G(self):
         ''' 
         input dim for G: 
         (x, t, u, v)
@@ -190,8 +192,6 @@ class PINN_GAN(nn.Module):
         self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
         self.u_ub_pred, self.v_ub_pred, self.u_x_ub_pred, self.v_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
         
-        
-        
         '''
         print("loss stuff")
         print(self.f_u_pred)
@@ -203,21 +203,24 @@ class PINN_GAN(nn.Module):
         '''
         
         # initial condition + boundary condition + PDE constraint
-        # TODO: incorporate weights into loss claculation
+        # TODO: incorporate weights into loss calculation
         MSE = loss(self.u0_pred, self.u0) + loss(self.v0_pred, self.v0) + \
             loss(self.u_lb_pred, self.u_ub_pred) + loss(self.v_lb_pred, self.v_ub_pred) + \
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred) + \
-            loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred)) # NOTE what is lb pred, ub pred etc?
+            loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred)) 
+        # NOTE what is lb pred, ub pred etc?
+        # NOTE: write 
         
         input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
         D_input = self.discriminator.model(input_D)
         L_D = loss_l1(torch.ones_like(D_input), 
-                      D_input)
+                    D_input)
         # NOTE: dimensionality
         return MSE + L_D
 
         # TODO : implement boundary data and boundary condition for GAN
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
+        # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
 
     def loss_D(self):
         '''
@@ -237,6 +240,9 @@ class PINN_GAN(nn.Module):
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
+    
+    def loss_PW(self):
+        return
 
     def train(self, epochs = 1e+4, lr_G = 1e-3, lr_D = 2e-4, n_critic = 5):
         # Optimizer
@@ -248,24 +254,29 @@ class PINN_GAN(nn.Module):
             # TODO done?
             self.u0_pred, self.v0_pred, _, _ = self.net_uv(self.x0, self.t0)
             self.f_u_pred, self.f_v_pred = self.net_f_uv(self.x_f, self.t_f)
-        
+
             optimizer_D.zero_grad()
             loss_Discr = self.loss_D()
-            loss_Discr.backward()
+            loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
                 optimizer_G.zero_grad()
-                loss = self.loss_G(loss_Discr)
-                loss.backward()
+                loss_G = self.loss_G()
+                loss_G.backward(retain_graph=True)
                 optimizer_G.step()
-            
+                # Update PW loss
+                optimizer_G.zero_grad()
+
+                loss_PW = 
             # weight updates
             self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
 
-            # TODO: point loss
+            # TODO: point loss backprop
+
             
             if epoch % 100 == 0:
-                print('Epoch: %d, Loss: %.3e' % (epoch, loss.item()))
-        
+                print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
+                
+
 
     def predict(self, X_star):
         u_star, v_star, f_u_star, f_v_star = self.forward(X_star[:, 0:1], X_star[:, 1:2])
