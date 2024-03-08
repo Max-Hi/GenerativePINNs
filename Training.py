@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import scipy.io
 from pyDOE import lhs
@@ -5,6 +6,9 @@ import time
 import matplotlib.pyplot as plt
 
 from PINN import PINN_GAN, Discriminator, Generator
+
+# random seed for reproduceability
+np.random.seed(42)
 
 # Hyperparameters
 noise = 0.0        
