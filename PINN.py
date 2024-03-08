@@ -201,20 +201,28 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs = 1e+4, lr = 1e-3):
+    def train(self, epochs = 1e+4, lr_G = 1e-3, lr_D = 2e-4, n_critic = 5):
         # Optimizer
-        optimizer_G = adam.Adam(self.generator.parameters(), lr=lr)
-        optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr)
+        optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
+        optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
         
         # Training
         for epoch in tqdm(range(epochs)):
             # TODO
-            optimizer_G.zero_grad()
-            loss = self.loss_G(1)
+            optimizer_D.zero_grad()
+            loss = self.loss_D()
             loss.backward()
-            optimizer_G.step()
+            if epoch % n_critic = 0:
+                optimizer_G.zero_grad()
+                loss = self.loss_G(1)
+                loss.backward()
+                optimizer_G.step()
+
+            # TODO: point loss
+            
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss: %.3e' % (epoch, loss.item()))
+        
 
     def predict(self, X_star):
         u_star, v_star, f_u_star, f_v_star = self.forward(X_star[:, 0:1], X_star[:, 1:2])
