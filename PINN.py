@@ -186,13 +186,11 @@ class PINN_GAN(nn.Module):
         # TODO: call util.py for point loss
         loss = nn.MSELoss()
         loss_l1 = nn.L1Loss()
-        self.u0_pred, self.v0_pred, _, _ = self.net_uv(self.x0, self.t0)
         
         self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
         self.u_ub_pred, self.v_ub_pred, self.u_x_ub_pred, self.v_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
         
         
-        self.f_u_pred, self.f_v_pred = self.net_f_uv(self.x_f, self.t_f)
         
         '''
         print("loss stuff")
@@ -210,9 +208,6 @@ class PINN_GAN(nn.Module):
             loss(self.u_lb_pred, self.u_ub_pred) + loss(self.v_lb_pred, self.v_ub_pred) + \
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred) + \
             loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred)) # NOTE what is lb pred, ub pred etc?
-        
-        # weight updates
-        self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
         
         input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
         D_input = self.discriminator.model(input_D)
@@ -232,11 +227,11 @@ class PINN_GAN(nn.Module):
         '''
         #TODO 
         loss = nn.L1Loss()
-        discriminator_T = self.Discriminator.model(
+        discriminator_T = self.discriminator.model(
             torch.concat((self.x0, self.t0, self.u0, self.v0), 1)
             )
 
-        discriminator_L = self.Discriminator.model(
+        discriminator_L = self.discriminator.model(
             torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
             )
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
@@ -250,15 +245,21 @@ class PINN_GAN(nn.Module):
         
         # Training
         for epoch in tqdm(range(epochs)):
-            # TODO
+            # TODO done?
+            self.u0_pred, self.v0_pred, _, _ = self.net_uv(self.x0, self.t0)
+            self.f_u_pred, self.f_v_pred = self.net_f_uv(self.x_f, self.t_f)
+        
             optimizer_D.zero_grad()
-            loss = self.loss_D()
-            loss.backward()
-            if epoch % n_critic = 0:
+            loss_Discr = self.loss_D()
+            loss_Discr.backward()
+            if epoch % n_critic == 0:
                 optimizer_G.zero_grad()
-                loss = self.loss_G(1)
+                loss = self.loss_G(loss_Discr)
                 loss.backward()
                 optimizer_G.step()
+            
+            # weight updates
+            self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
 
             # TODO: point loss
             
