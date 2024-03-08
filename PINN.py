@@ -52,6 +52,7 @@ class Discriminator(nn.Module):
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D):
         """
+        DGL: f(x,x'...t)=0
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
         X_f: the collocation points with time, size (Nf, 2)
@@ -99,9 +100,9 @@ class PINN_GAN(nn.Module):
         X = torch.cat([x, t], dim=1)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
         self.H = H
-        self.uv = uv
         # NOTE: ????
-        uv = self.Generator.model(H)
+        uv = self.generator.model(H)
+        self.uv = uv
         u = uv[:, 0:1]
         v = uv[:, 1:2]
         u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
@@ -121,12 +122,17 @@ class PINN_GAN(nn.Module):
         f_v = v_t - 0.5*u_xx - (u**2 + v**2)*u
         return f_u, f_v
 
-
     def forward(self, x, t):
         u, v, _, _ = self.net_uv(x, t)
         f_u, f_v = self.net_f_uv(x, t)
         return u, v, f_u, f_v
     
+    def beta(self, x, t, u, e):
+        if abs(self.forward(x,t)[0]-u)**2 <= e:
+            return 1
+        else:
+            return -1
+
 
     def loss_G(self, loss_d):
         ''' 
@@ -149,7 +155,7 @@ class PINN_GAN(nn.Module):
         MSE = loss(self.u0_pred, self.u0) + loss(self.v0_pred, self.v0) + \
             loss(self.u_lb_pred, self.u_ub_pred) + loss(self.v_lb_pred, self.v_ub_pred) + \
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred) + \
-            loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred))
+            loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred)) # NOTE what is lb pred, ub pred etc?
         
         input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
         D_input = self.Discriminator.model(input_D)
@@ -177,7 +183,7 @@ class PINN_GAN(nn.Module):
             torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
             )
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
-                loss(discriminator_L, torch.ones_like(discriminator_L))
+                loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
     def train(self, epochs = 1e+4, lr = 1e-3):
