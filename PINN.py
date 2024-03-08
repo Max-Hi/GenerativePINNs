@@ -90,9 +90,9 @@ class PINN_GAN(nn.Module):
 
         # weights for the point weigthing algorithm
         n_boundary_conditions = 2 # EDIT manually
-        M = 50 # EDIT manually the numnber of collocation points
-        self.domain_weights = torch.full((M,), 1/M)
-        self.boundary_weights = [torch.full((M,), 1/M)]*n_boundary_conditions
+        self.number_collocation_points = 50 # EDIT manually the numnber of collocation points
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points)
+        self.boundary_weights = [torch.full((self.number_collocation_points,), 1/self.number_collocation_points)]*n_boundary_conditions
         
         # Sizes
         self.layers_D = layers_D
@@ -144,10 +144,26 @@ class PINN_GAN(nn.Module):
         u: function value at collocation points (If N is the network we are trying to achieve N=u and we have certain values u(x_i) given that are in this variable)
         e: a hyperparameter that is a meassure for the exactness to which N should approximate u
         '''
+        # TODO vectorize! should return m tensor for m = number of collocation points
         if abs(self.forward(x,t)[0]-u)**2 <= e:
             return 1
         else:
             return -1
+        
+    def weight_update(self):
+        '''
+        This function changes the weights used for loss calculation according to the papers formular
+        '''
+        # TODO pass values to beta, waiting on the collocation points to be coded / explained
+        for index, w in [self.domain_weights] + self.boundary_weights: # concatenate lists
+            rho = torch.sum(w*(self.beta()==-1*torch.ones(self.number_collocation_points)))
+            alpha = self.q[index]*torch.log((1-rho)/rho)
+            w_new = w*torch.exp(-alpha*self.beta())/torch.sum(w*torch.exp(-alpha*self.beta())) # the sum sums along the values of w
+            
+            if index == 0:
+                self.domain_weights = w_new
+            else:
+                self.boundary_weights[index-1] = w_new
 
     def loss_G(self, loss_d):
         ''' 
