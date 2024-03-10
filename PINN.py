@@ -11,11 +11,6 @@ import torch
 import torch.nn as nn
 from torch.optim import adam
 
-print(np.__version__)
-print(tqdm.__version__)
-print(torch.__version__)
-print(sklearn.__version__)
-
 
 # set random seeds for reproducability
 np.random.seed(42)
@@ -272,7 +267,7 @@ class PINN_GAN(nn.Module):
                 # Update PW loss
                 optimizer_G.zero_grad()
 
-                loss_PW = 
+                # loss_PW = TODO
             # weight updates
             self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
 
