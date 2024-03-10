@@ -2,14 +2,20 @@
 import numpy as np
 
 from tqdm import tqdm
-from sklearn.model_selection import train_test_split
-from scipy.integrate import odeint
+# from sklearn.model_selection import train_test_split
+# from scipy.integrate import odeint
 
 import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
 from torch.optim import adam
+
+print(np.__version__)
+print(tqdm.__version__)
+print(torch.__version__)
+print(sklearn.__version__)
+
 
 # set random seeds for reproducability
 np.random.seed(42)
@@ -255,7 +261,7 @@ class PINN_GAN(nn.Module):
             if epoch % n_critic == 0:
                 optimizer_G.zero_grad()
                 loss = self.loss_G(loss_Discr)
-                loss.backward()
+                loss.backward(retain_graph=True)
                 optimizer_G.step()
             
             # weight updates
