@@ -83,27 +83,19 @@ class PINN_GAN(nn.Module):
                   ]
         
          # Initial Data
-        self.x0 = torch.tensor(X0[:, 0:1], requires_grad=True)
-        self.t0 = torch.tensor(X0[:, 1:2], requires_grad=True)
-        
-        self.u0 = torch.tensor(Y0[:, 0:1])
-        self.v0 = torch.tensor(Y0[:, 1:2])
+        self.x0 = torch.tensor(X0, requires_grad=True)
+        self.y0 = torch.tensor(Y0)
         
         # Boundary Data
-        self.x_lb = torch.tensor(X_lb[:, 0:1], requires_grad=True)
-        self.t_lb = torch.tensor(X_lb[:, 1:2], requires_grad=True)
-        self.x_ub = torch.tensor(X_ub[:, 0:1], requires_grad=True)
-        self.t_ub = torch.tensor(X_ub[:, 1:2], requires_grad=True)
+        self.x_lb = torch.tensor(X_lb, requires_grad=True)
+        self.x_ub = torch.tensor(X_ub, requires_grad=True)
         
         # Collocation Points
-        self.x_f = torch.tensor(X_f[:, 0:1], requires_grad=True)
-        self.t_f = torch.tensor(X_f[:, 1:2], requires_grad=True)
+        self.x_f = torch.tensor(X_f, requires_grad=True)
         
         # training points that have values
-        self.x_t = torch.tensor(X_t[:,0])
-        self.t_t = torch.tensor(X_t[:,1])
-        self.u_t = torch.tensor(Y_t[:,0])
-        self.v_t = torch.tensor(Y_t[:,1])
+        self.x_t = torch.tensor(X_t)
+        self.y_t = torch.tensor(Y_t)
         
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
@@ -129,8 +121,11 @@ class PINN_GAN(nn.Module):
 
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
-    def net_uv(self, x, t):
-        X = torch.cat([x, t], dim=1).transpose(0,1)
+    def net_y(self, x):
+        if x.ndim > 1:
+            X = torch.cat([*x], dim=1).transpose(0,1)
+        else:
+            X = torch.tensor(x).reshape()
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
         self.H = H.transpose(0,1)
         # NOTE: ????
