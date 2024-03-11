@@ -57,6 +57,7 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+    
 class weighted_MSELoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -65,7 +66,7 @@ class weighted_MSELoss(nn.Module):
                           torch.square(inputs-targets).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -97,6 +98,12 @@ class PINN_GAN(nn.Module):
         # Collocation Points
         self.x_f = torch.tensor(X_f[:, 0:1], requires_grad=True)
         self.t_f = torch.tensor(X_f[:, 1:2], requires_grad=True)
+        
+        # training points that have values
+        self.x_t = torch.tensor(X_t[:,0])
+        self.t_t = torch.tensor(X_t[:,1])
+        self.u_t = torch.tensor(Y_t[:,0])
+        self.v_t = torch.tensor(Y_t[:,1])
         
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
@@ -196,6 +203,16 @@ class PINN_GAN(nn.Module):
             else:
                 self.boundary_weights[index-1] = w_new
 
+    def loss_T(self):
+        '''
+        returns the mse loss of samples that have x and y values. These should be saved in x_t, y_t
+        '''
+        loss = nn.MSELoss()
+        
+        self.u_pred, self.v_pred, _, _ = self.net_uv(self.x_t, self.t_t)
+        
+        return loss(self.u_pred, self.u_t) + loss(self.v_pred, self.v_t)
+    
     def loss_G(self):
         ''' 
         input dim for G: 
@@ -204,7 +221,6 @@ class PINN_GAN(nn.Module):
         '''
         # TODO: call util.py for point loss
         loss = nn.MSELoss()
-        loss_l1 = nn.L1Loss()
         f_loss = weighted_MSELoss()
         
         self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
