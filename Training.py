@@ -5,7 +5,7 @@ from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
 
-from PINN import PINN_GAN, Discriminator, Generator
+from PINN_minimal_example import PINN_GAN, Discriminator, Generator
 
 # random seed for reproduceability
 np.random.seed(42)
