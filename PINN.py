@@ -24,7 +24,7 @@ device = (
         )
 print(f"Using {device} device")
 
-
+torch.autograd.set_detect_anomaly(True)
 # Initialize NNs
 class Generator(nn.Module):
     def __init__(self, layers_G):
@@ -95,10 +95,10 @@ class PINN_GAN(nn.Module):
         self.ub = torch.tensor(boundary[:, 1:2])
 
         # weights for the point weigthing algorithm
-        n_boundary_conditions = 0 # EDIT manually
+        self.n_boundary_conditions = 0 # NOTE: EDIT manually (why?)
         self.number_collocation_points = self.x_f.shape[0]
-        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points)
-        self.boundary_weights = [torch.full((self.number_collocation_points,), 1/self.number_collocation_points)]*n_boundary_conditions
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = [torch.full((self.number_collocation_points,), 1/self.number_collocation_points, requires_grad=False)]*self.n_boundary_conditions
         
         print("weights")
         print(self.domain_weights)
@@ -109,7 +109,8 @@ class PINN_GAN(nn.Module):
         
         self.generator = Generator(self.layers_G)
         self.discriminator = Discriminator(self.layers_D)
-                  
+        
+        self.e = 1e-3  # Hyperparameter for PW update
 
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
@@ -149,14 +150,19 @@ class PINN_GAN(nn.Module):
         A function that differentiates between easy to learn and hard to learn points.
         It is used for the weightupdate. 
         f_u_pred and f_v_pred are the values of the DGL function which should be close to zero
-        e: a hyperparameter that is a meassure for the exactness to which N should approximate u
+        e: a hyperparameter that is a measure for the exactness to which N should approximate u
         '''
-        return (f_u_pred**2 + f_v_pred**2 <= e).to(torch.float32) - (f_u_pred**2 + f_v_pred**2 > e).to(torch.float32)
-        
+        beta = (f_u_pred**2 + f_v_pred**2 <= e).to(torch.float32) - (f_u_pred**2 + f_v_pred**2 > e).to(torch.float32)
+        beta.requires_grad_(False)
+        return beta
     def weight_update(self, f_u_pred, f_v_pred, e):
+        # f_pred 
         '''
-        This function changes the weights used for loss calculation according to the papers formular. It should be called after each iteration. 
+        This function changes the weights used for loss calculation according to the papers formular. 
+        It should be called after each iteration. 
         '''
+        # TODO: ???????????????????? boundary weight update?
+
         for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
             # print("e: ", e)
             rho = torch.sum(w*(self.beta(f_u_pred, f_v_pred, e)==-1.0).transpose(0,1))
@@ -209,7 +215,7 @@ class PINN_GAN(nn.Module):
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred) + \
             loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + loss(self.f_v_pred, torch.zeros_like(self.f_v_pred)) 
         # NOTE what is lb pred, ub pred etc?
-        # NOTE: write 
+        # NOTE: write L_PW outside
         
         input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
         D_input = self.discriminator.model(input_D)
@@ -222,6 +228,18 @@ class PINN_GAN(nn.Module):
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
         # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
 
+    
+    def loss_PW(self):
+        
+        f_loss = torch.matmul(self.domain_weights,\
+                          (torch.square(self.f_u_pred-torch.zeros_like(self.f_u_pred)) + \
+                             torch.square(self.f_v_pred-torch.zeros_like(self.f_v_pred))).to(torch.float32))[0][0]
+        print(f_loss)
+        # b_loss = torch.inner(self.boundary_weights, 
+        # NOTE: leaving boundary conditions blank
+        # TODO: boundary conditions&implement
+        return f_loss # + b_loss
+    
     def loss_D(self):
         '''
         input dim for D: 
@@ -240,15 +258,13 @@ class PINN_GAN(nn.Module):
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
-    
-    def loss_PW(self):
-        return
+
 
     def train(self, epochs = 1e+4, lr_G = 1e-3, lr_D = 2e-4, n_critic = 5):
         # Optimizer
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
-        
+        optimizer_PW = adam.Adam(self.discriminator.parameters(), lr=lr_G)
         # Training
         for epoch in tqdm(range(epochs)):
             # TODO done?
@@ -264,15 +280,13 @@ class PINN_GAN(nn.Module):
                 loss_G.backward(retain_graph=True)
                 optimizer_G.step()
                 # Update PW loss
-                optimizer_G.zero_grad()
-
-                loss_PW = 
+                self.weight_update(self.f_u_pred, self.f_v_pred, self.e)
+                optimizer_PW.zero_grad()
+                loss_PW = self.loss_PW()
+                loss_PW.backward(retain_graph=True)
+                optimizer_PW.step()
             # weight updates
-            self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
-
-            # TODO: point loss backprop
-
-            
+  
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
                 
