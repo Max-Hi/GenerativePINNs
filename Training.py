@@ -5,7 +5,7 @@ from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
 
-from PINN_minimal_example import PINN_GAN, Discriminator, Generator
+from PINN import PINN_GAN, Discriminator, Generator
 
 # random seed for reproduceability
 np.random.seed(42)
@@ -55,8 +55,11 @@ boundary = np.vstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
+X_t = None
+Y_t = None
+
 # Train the model
-model = PINN_GAN(X0, Y0, X_f, X_lb, X_ub, boundary, layers_G, layers_D)
+model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
 model.train(2000)
 print('Training time: %.4f' % (time.time() - start_time))

@@ -100,10 +100,16 @@ class PINN_GAN(nn.Module):
         self.t_f = torch.tensor(X_f[:, 1:2], requires_grad=True)
         
         # training points that have values
-        self.x_t = torch.tensor(X_t[:,0])
-        self.t_t = torch.tensor(X_t[:,1])
-        self.u_t = torch.tensor(Y_t[:,0])
-        self.v_t = torch.tensor(Y_t[:,1])
+        if X_t is None:
+            self.x_t = None
+            self.t_t = None
+            self.u_t = None
+            self.v_t = None
+        else:
+            self.x_t = torch.tensor(X_t[:,0])
+            self.t_t = torch.tensor(X_t[:,1])
+            self.u_t = torch.tensor(Y_t[:,0])
+            self.v_t = torch.tensor(Y_t[:,1])
         
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
@@ -130,6 +136,8 @@ class PINN_GAN(nn.Module):
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
     def net_uv(self, x, t):
+        print("!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(x.shape, t.shape)
         X = torch.cat([x, t], dim=1).transpose(0,1)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
         self.H = H.transpose(0,1)
@@ -220,6 +228,7 @@ class PINN_GAN(nn.Module):
         possible error of dimensionality noted.
         '''
         # TODO: call util.py for point loss
+        loss_l1 = nn.L1Loss()
         loss = nn.MSELoss()
         f_loss = weighted_MSELoss()
         
