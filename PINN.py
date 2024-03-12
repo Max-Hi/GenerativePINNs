@@ -232,9 +232,14 @@ class PINN_GAN(nn.Module):
         '''
         # TODO: ???????????????????? boundary weight update?
 
+        rho_cond = 1e-5
+        rho_is_one = True # rho_is_one stays true if all rho are one within an error of rho_cond
         for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
             # print("e: ", e)
-            rho = torch.sum(w*(self.beta(f_pred, e)==-1.0)) # .transpose(0,1))
+            rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
+            print(rho)
+            if abs(rho-1)>rho_cond:
+                rho_is_one = False
             '''print("rho alpha stuff")
             print(self.beta(f_u_pred, f_v_pred, e))
             print("rho: ", rho)'''
@@ -255,6 +260,8 @@ class PINN_GAN(nn.Module):
 
             else:
                 self.boundary_weights[index-1] = w_new
+        
+        return rho_is_one
 
     def loss_T(self):
         '''
@@ -354,7 +361,7 @@ class PINN_GAN(nn.Module):
                 loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
                 # Update PW loss
-                self.weight_update(self.f_pred, self.e)
+                rho_is_one = self.weight_update(self.f_pred, self.e)
                
                 loss_PW = self.loss_PW()
                 loss_PW.backward(retain_graph=True)
@@ -365,6 +372,9 @@ class PINN_GAN(nn.Module):
   
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
+            
+            if rho_is_one:
+                break
                 
 
 

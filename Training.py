@@ -61,7 +61,7 @@ Y_t = None
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
-model.train(5000)
+model.train(1000)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
