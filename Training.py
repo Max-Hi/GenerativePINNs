@@ -67,14 +67,15 @@ print('Training time: %.4f' % (time.time() - start_time))
 
 # Predictions
 y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-print(y_pred.shape)
-u_pred, v_pred = y_pred[:,0], y_pred[:,1]
-print(v_pred.shape, u_pred.shape)
-print("test")
+u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
-        
+
 # Errors
 errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
           'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
           'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)}
-print('Errors: ', errors)
+print('Errors: ')
+for key in errors:
+    print(key+": ", errors[key])
+    
+print("value of f: ",np.sum(f_pred**2))

@@ -333,7 +333,6 @@ class PINN_GAN(nn.Module):
 
 
     def predict(self, X_star):
-        star = self.generator.forward(X_star)
-        y_star, f_star = star[:,0], star[:,1]
-        print(y_star.shape)
+        y_star = self.generator.forward(X_star)
+        f_star = -1*torch.ones_like(y_star) #TODO implement
         return y_star.detach().numpy(), f_star.detach().numpy()
