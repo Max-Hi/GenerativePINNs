@@ -61,7 +61,7 @@ Y_t = None
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
-model.train(2)
+model.train(5000)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -71,9 +71,11 @@ u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
 # Errors
-errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
-          'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
-          'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)}
+errors = {
+        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+          }
 print('Errors: ')
 for key in errors:
     print(key+": ", errors[key])
