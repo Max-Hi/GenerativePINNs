@@ -1,6 +1,6 @@
 # import modules
 import numpy as np
-
+import sys
 from tqdm import tqdm
 # from sklearn.model_selection import train_test_split
 # from scipy.integrate import odeint
@@ -28,9 +28,10 @@ print(f"Using {device} device")
 torch.autograd.set_detect_anomaly(True)
 # Initialize NNs
 class Generator(nn.Module):
-    def __init__(self, layers_G):
+    def __init__(self, layers_G, info_for_error=(None, None)):
         super(Generator, self).__init__()
         self.layers = layers_G
+        self.info_for_error = info_for_error
         self.model = nn.Sequential()
         # TODO: baseline structure to be altered 
         for l in range(0, len(self.layers) - 2):
@@ -40,12 +41,23 @@ class Generator(nn.Module):
         self.model = self.model.double()
         
     def forward(self, x):
-        return self.model(x)
+        try:
+            return self.model(x)
+        except RuntimeError as e:
+            print(f"Caught RuntimeError: {e}")
+            if self.info_for_error is not None:
+                print(f"It could be that the values in layers_D do not match with the dimensions of the data. The first entry of layers_D should be {self.info_for_error[0]} and is {self.layers[0]}.")
+            else:
+                print("It could be that the values in layers_D do not match with the dimensions of the data.")
+            if self.info_for_error is not None:
+                print(f"The last entry of layers_D should be {self.info_for_error[1]} and is {self.layers[-1]}.")
+            sys.exit(1)
 
 class Discriminator(nn.Module):
-    def __init__(self, layers_D):
+    def __init__(self, layers_D, info_for_error=(None, None)):
         super(Discriminator, self).__init__()
         self.layers = layers_D
+        self.info_for_error = info_for_error
         # NOTE: discriminator input dim = dim(x) * dim(G(x))
         self.model = nn.Sequential()
         # TODO: baseline structure to be altered 
@@ -54,9 +66,18 @@ class Discriminator(nn.Module):
             self.model.add_module("tanh" + str(l), nn.Tanh())
         self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid())
         self.model = self.model.double() 
-
     def forward(self, x):
-        return self.model(x)
+        try:
+            return self.model(x)
+        except RuntimeError as e:
+            print(f"Caught RuntimeError: {e}")
+            if self.info_for_error is not None:
+                print(f"It could be that the values in layers_D do not match with the dimensions of the data. The first entry of layers_D should be {self.info_for_error[0]} and is {self.layers[0]}.")
+            else:
+                print("It could be that the values in layers_D do not match with the dimensions of the data.")
+            if self.info_for_error is not None:
+                print(f"The last entry of layers_D should be {self.info_for_error[1]} and is {self.layers[-1]}.")
+            sys.exit(1)
     
 class weighted_MSELoss(nn.Module):
     def __init__(self):
@@ -112,8 +133,8 @@ class PINN_GAN(nn.Module):
         self.layers_D = layers_D
         self.layers_G = layers_G
         
-        self.generator = Generator(self.layers_G)
-        self.discriminator = Discriminator(self.layers_D)
+        self.generator = Generator(self.layers_G, info_for_error=(self.x0.shape[1],self.y0.shape[1]))
+        self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y0.shape[1]+self.x0.shape[1],1))
         
         self.e = 1e-3  # Hyperparameter for PW update
 
@@ -254,7 +275,7 @@ class PINN_GAN(nn.Module):
         '''
         
         input_D = torch.concat((self.x0, self.y0_pred), 1)
-        D_input = self.discriminator.model(input_D)
+        D_input = self.discriminator.forward(input_D)
         L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
         
@@ -286,11 +307,11 @@ class PINN_GAN(nn.Module):
         '''
         #TODO 
         loss = nn.L1Loss()
-        discriminator_T = self.discriminator.model(
+        discriminator_T = self.discriminator.forward(
             torch.concat((self.x0, self.y0), 1)
             )
 
-        discriminator_L = self.discriminator.model(
+        discriminator_L = self.discriminator.forward(
             torch.concat((self.x0, self.y0_pred), 1)
             )
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \

@@ -20,7 +20,7 @@ N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
 layers_G = [2, 100, 100, 100, 100, 2]
-layers_D = [4, 100, 100, 2]
+layers_D = [4, 100, 100, 1]
 
 # Load data from simulated dataset
 data = scipy.io.loadmat('./Data/NLS.mat')
