@@ -20,7 +20,7 @@ N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
 layers_G = [2, 100, 100, 100, 100, 2]
-layers_D = [4, 100, 100, 2]
+layers_D = [4, 100, 100, 1]
 
 # Load data from simulated dataset
 data = scipy.io.loadmat('./Data/NLS.mat')
@@ -55,22 +55,29 @@ boundary = np.vstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
-X_t = None
+X_t = None # TODO for now just default
 Y_t = None
 
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
-model.train(2000)
+model.train(5000)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
 # Predictions
-u_pred, v_pred, _, _ = model.predict(torch.tensor(X_star, requires_grad=True))
+y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
-        
+
 # Errors
-errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
-          'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
-          'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)}
-print('Errors: ', errors)
+errors = {
+        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+          }
+print('Errors: ')
+for key in errors:
+    print(key+": ", errors[key])
+    
+print("value of f: ",np.sum(f_pred**2))
