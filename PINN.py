@@ -153,6 +153,14 @@ class PINN_GAN(nn.Module):
     # TODO: adjust according to different equation
     # TODO: pass function as parameter in init configs
     def net_f(self, X):
+        try:
+            return self._net_f(X)
+        except IndexError as e:
+            print(f"Caught IndexError: {e}")
+            print("This was caught in net_f, so it is likely that your implementation for calculating f is wrong, probably due to a missunderstanding concerning dimensionality.")
+            sys.exit(1)
+    
+    def _net_f(self, X):
         y = self.net_y(X)
         u = y[:,0:1]
         v = y[:,1:2]
