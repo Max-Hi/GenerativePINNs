@@ -61,13 +61,16 @@ Y_t = None
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
 start_time = time.time()                
-model.train(200)
+model.train(2)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
 # Predictions
-y_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+print(y_pred.shape)
 u_pred, v_pred = y_pred[:,0], y_pred[:,1]
+print(v_pred.shape, u_pred.shape)
+print("test")
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
         
 # Errors
