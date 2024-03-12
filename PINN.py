@@ -63,7 +63,7 @@ class weighted_MSELoss(nn.Module):
         super().__init__()
     def forward(self,inputs,targets,weights):
         return torch.dot(weights.flatten(),\
-                          torch.square(inputs-targets).flatten())
+                          torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D):
@@ -94,8 +94,9 @@ class PINN_GAN(nn.Module):
         self.x_f = torch.tensor(X_f, requires_grad=True)
         
         # training points that have values
-        self.x_t = torch.tensor(X_t)
-        self.y_t = torch.tensor(Y_t)
+        if X_t != None:
+            self.x_t = torch.tensor(X_t)
+            self.y_t = torch.tensor(Y_t)
         
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
@@ -122,51 +123,57 @@ class PINN_GAN(nn.Module):
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
     def net_y(self, x):
-        if x.ndim > 1:
-            X = torch.cat([*x], dim=1).transpose(0,1)
-        else:
-            X = torch.tensor(x).reshape()
+        X = x.transpose(0,1)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
         self.H = H.transpose(0,1)
         # NOTE: ????
-        uv = self.generator.forward(self.H)
-        self.uv = uv
-        u = uv[:, 0:1]
-        v = uv[:, 1:2]
-        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0] # create_graph=True
-        v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
-        return u, v, u_x, v_x
+        y = self.generator.forward(self.H)
+        self.y = y
+        return_value = []
+        for i in range(0,y.shape[1]):
+            return_value.append(y[:,i:i+1])
+        return return_value
 
     # compute the Schrodinger function on the collocation points
     # TODO: adjust according to different equation
     # TODO: pass function as parameter in init configs
-    def net_f_uv(self, x, t):
-        u, v, u_x, v_x = self.net_uv(x, t)
+    def net_f(self, X):
+        x = X[0]
+        t = X[1]
+        y = self.net_y(X)
+        u = y[0]
+        v = y[1]
+        u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        v_x = torch.autograd.grad(v, x, grad_outputs=torch.ones_like(v), create_graph=True)[0]
         u_t = torch.autograd.grad(u, t, grad_outputs=torch.ones_like(u), create_graph=True)[0]
         u_xx = torch.autograd.grad(u_x, x, grad_outputs=torch.ones_like(u_x), create_graph=True)[0]
         v_t = torch.autograd.grad(v, t, grad_outputs=torch.ones_like(v), create_graph=True)[0]
         v_xx = torch.autograd.grad(v_x, x, grad_outputs=torch.ones_like(v_x), create_graph=True)[0]
         f_u = u_t + 0.5*v_xx + (u**2 + v**2)*v
         f_v = v_t - 0.5*u_xx - (u**2 + v**2)*u
-        return f_u.to(torch.float32), f_v.to(torch.float32)
+        return torch.cat((f_u.to(torch.float32), f_v.to(torch.float32)),1)
 
-    def forward(self, x, t):
-        u, v, _, _ = self.net_uv(x, t)
-        f_u, f_v = self.net_f_uv(x, t)
-        return u, v, f_u, f_v
+    def boundary(self):
+        # TODO implement
+        return 0
+
+    def forward(self, x):
+        y = self.net_y(x)
+        f = self.net_f(x)
+        return y, f
     
-    def beta(self, f_u_pred, f_v_pred, e):
+    def beta(self, f_pred, e):
         '''
         A function that differentiates between easy to learn and hard to learn points.
         It is used for the weightupdate. 
         f_u_pred and f_v_pred are the values of the DGL function which should be close to zero
         e: a hyperparameter that is a measure for the exactness to which N should approximate u
         '''
-        beta = (f_u_pred**2 + f_v_pred**2 <= e).to(torch.float32) - (f_u_pred**2 + f_v_pred**2 > e).to(torch.float32)
+        beta = (torch.sum(f_pred**2, dim=1) <= e).to(torch.float32) - (torch.sum(f_pred**2, dim=1) > e).to(torch.float32)
         beta.requires_grad_(False)
         return beta
     
-    def weight_update(self, f_u_pred, f_v_pred, e):
+    def weight_update(self, f_pred, e):
         # f_pred 
         '''
         This function changes the weights used for loss calculation according to the papers formular. 
@@ -176,7 +183,7 @@ class PINN_GAN(nn.Module):
 
         for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
             # print("e: ", e)
-            rho = torch.sum(w*(self.beta(f_u_pred, f_v_pred, e)==-1.0).transpose(0,1))
+            rho = torch.sum(w*(self.beta(f_pred, e)==-1.0).transpose(0,1))
             '''print("rho alpha stuff")
             print(self.beta(f_u_pred, f_v_pred, e))
             print("rho: ", rho)'''
@@ -185,8 +192,8 @@ class PINN_GAN(nn.Module):
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
             # print("alpha: ", alpha)
-            w_new = w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e).to(torch.float32)).transpose(0,1) / \
-                torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e).to(torch.float32)).transpose(0,1)) # the sum sums along the values of w
+            w_new = w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32)).transpose(0,1) / \
+                torch.sum(w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32)).transpose(0,1)) # the sum sums along the values of w
             '''print("w_new partly 1: ", w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1))
             print("w_new partly 2: ", torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1)))
             print("w_new: ", w_new )'''
@@ -204,9 +211,9 @@ class PINN_GAN(nn.Module):
         '''
         loss = nn.MSELoss()
         
-        self.u_pred, self.v_pred, _, _ = self.net_uv(self.x_t, self.t_t)
+        self.y_pred = self.net_y(self.x)
         
-        return loss(self.u_pred, self.u_t) + loss(self.v_pred, self.v_t)
+        return loss(self.y_pred, self.y_t)
     
     def loss_G(self):
         ''' 
@@ -215,21 +222,12 @@ class PINN_GAN(nn.Module):
         possible error of dimensionality noted.
         '''
         # TODO: call util.py for point loss
-        loss = nn.MSELoss()
-        f_loss = weighted_MSELoss()
+        loss_l1 = nn.L1Loss()
         
-        self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
-        self.u_ub_pred, self.v_ub_pred, self.u_x_ub_pred, self.v_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
-        
+        # TODO: this calculates the boundary loss. This needs to go elsewhere:
         '''
-        print("loss stuff")
-        print(self.f_u_pred)
-        print("____")
-        print(self.beta(self.f_u_pred, self.f_v_pred, 0.001))
-        self.weight_update(self.f_u_pred, self.f_v_pred, 0.001)
-        print("weights")
-        print(self.domain_weights)
-        '''
+        self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb) # TODO get as array
+        self.u_ub_pred, self.v_ub_pred, self.u_x_ub_pred, self.v_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)# TODO get as array
         
         # initial condition + boundary condition + PDE constraint
         # TODO: incorporate weights into loss calculation
@@ -238,16 +236,18 @@ class PINN_GAN(nn.Module):
             loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred)
         # NOTE what is lb pred, ub pred etc?
         # NOTE: write L_PW outside
+        '''
         
-        input_D = torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
+        input_D = torch.concat((self.x0, self.y0_pred), 1)
         D_input = self.discriminator.model(input_D)
         L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
         
+        L_T = 0 # TODO call L_T for now default value
 
         # NOTE: dimensionality
 
-        return MSE + L_D
+        return L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -257,8 +257,7 @@ class PINN_GAN(nn.Module):
     def loss_PW(self):
         
         f_loss = weighted_MSELoss()
-        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
-                f_loss(self.f_v_pred, torch.zeros_like(self.f_v_pred), self.domain_weights.to(torch.float32))
+        L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
         # TODO: boundary conditions&implement
@@ -267,17 +266,17 @@ class PINN_GAN(nn.Module):
     def loss_D(self):
         '''
         input dim for D: 
-        (x, t, u, v)
-        possible error of dimensionality noted.
+        (x, y)
+        possible error of dimensionality noted -> transpose
         '''
         #TODO 
         loss = nn.L1Loss()
         discriminator_T = self.discriminator.model(
-            torch.concat((self.x0, self.t0, self.u0, self.v0), 1)
+            torch.concat((self.x0, self.y0), 1)
             )
 
         discriminator_L = self.discriminator.model(
-            torch.concat((self.x0, self.t0, self.u0_pred, self.v0_pred), 1)
+            torch.concat((self.x0, self.y0_pred), 1)
             )
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
                 loss(discriminator_T, torch.ones_like(discriminator_T))
@@ -292,8 +291,8 @@ class PINN_GAN(nn.Module):
         # Training
         for epoch in tqdm(range(epochs)):
             # TODO done?
-            self.u0_pred, self.v0_pred, _, _ = self.net_uv(self.x0, self.t0)
-            self.f_u_pred, self.f_v_pred = self.net_f_uv(self.x_f, self.t_f)
+            self.y0_pred = self.net_y(self.x0) # TODO get as array
+            self.f_pred = self.net_f(self.x_f)
 
             optimizer_D.zero_grad()
             loss_Discr = self.loss_D()
@@ -304,7 +303,7 @@ class PINN_GAN(nn.Module):
                 loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
                 # Update PW loss
-                self.weight_update(self.f_u_pred, self.f_v_pred, self.e)
+                self.weight_update(self.f_pred, self.e)
                
                 loss_PW = self.loss_PW()
                 loss_PW.backward(retain_graph=True)
@@ -319,5 +318,5 @@ class PINN_GAN(nn.Module):
 
 
     def predict(self, X_star):
-        u_star, v_star, f_u_star, f_v_star = self.generator.forward(X_star[:, 0:1], X_star[:, 1:2])
-        return u_star.detach().numpy(), v_star.detach().numpy(), f_u_star.detach().numpy(), f_v_star.detach().numpy()
+        y_star, f_star = self.generator.forward(X_star)
+        return y_star.detach().numpy(), f_star.detach().numpy()
