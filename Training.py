@@ -58,7 +58,7 @@ X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
 # Training Samples with Y values
 n, m = len(x), len(t)
-k1, k2 = 200, 200  # Number of samples we want to draw
+k1, k2 = 20, 20  # Number of samples we want to draw
 
 idx_x = np.random.choice(n, k1, replace=False) 
 idx_t = np.random.choice(m, k2, replace=False) 
@@ -77,7 +77,6 @@ model_name = input("Give your model a name to be saved under. Press Enter withou
 if model_name != "":
     taken_names = os.listdir("Saves")
     taken_names.remove(".gitignore")
-    print(taken_names)
     while model_name in list(map(lambda x: x.split("_")[0], taken_names))+["list"] or "_" in model_name:
         model_name = input("The Name is taken or you included '_' in your name. Give your model a different name. To list existing names, enter 'list'. ")
         if model_name == "list":
@@ -87,7 +86,7 @@ if model_name != "":
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, model_name)
 start_time = time.time()         
-model.train(100)
+model.train(200)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -101,7 +100,7 @@ print(u_pred.shape, x.shape)
 plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
 plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
 plt.legend()
-plt.savefig(model_name+".png")
+plt.savefig(model_name)
 
 # Errors
 errors = {
