@@ -86,7 +86,7 @@ if model_name != "":
 # Train the model
 model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, model_name)
 start_time = time.time()         
-model.train(200)
+model.train(1500)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -95,10 +95,8 @@ y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
 u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
-print(u_pred.shape, x.shape)
-
-plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
 plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
 plt.legend()
 plt.savefig(model_name)
 

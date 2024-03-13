@@ -370,7 +370,9 @@ class PINN_GAN(nn.Module):
         # TODO: call util.py for point loss
         loss_l1 = nn.L1Loss()
         
-        input_D = torch.concat((self.x0, self.y0_pred), 1)
+        self.y_f_pred = self.net_y(self.x_f)
+        
+        input_D = torch.concat((self.x_f, self.y_f_pred), 1)
         D_input = self.discriminator.forward(input_D)
         L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
