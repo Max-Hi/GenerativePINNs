@@ -278,6 +278,7 @@ class PINN_GAN(nn.Module):
                     Jacobian[:, i, j] = torch.zeros(X.shape[0])
         
         boundaries = [y-2/torch.cosh(X), self.net_y(X)-self.net_y(X), self.net_y(X)-self.net_y(X)] #TODO
+        boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
 
     def forward(self, x):
@@ -374,6 +375,8 @@ class PINN_GAN(nn.Module):
         
         f_loss = weighted_MSELoss()
         L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
+        for index, boundary in enumerate(self.boundary()):
+            L_PW += f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
         # TODO: boundary conditions&implement
