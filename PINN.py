@@ -85,7 +85,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G: list, layers_D: list, model_name: str="", lr: tuple=(1e-3, 2e-4)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G: list, layers_D: list, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -102,10 +102,13 @@ class PINN_GAN(nn.Module):
         super(PINN_GAN, self).__init__()
 
         # Hyperparameters
-        self.q = [0.1,
-                  0.1,
-                  0.1,
-                  0.1]
+        self.q = [
+            0.1,
+            0.1,
+            0.1,
+            0.1
+        ]
+        self.lambdas = lambdas
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -374,7 +377,7 @@ class PINN_GAN(nn.Module):
         
         L_T = self.loss_T()
 
-        return 1000*L_T + L_D
+        return self.lambdas[1]*L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -385,7 +388,7 @@ class PINN_GAN(nn.Module):
         f_loss = weighted_MSELoss()
         L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
         for index, boundary in enumerate(self.boundary()):
-            L_PW += f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
+            L_PW += self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
         # TODO: boundary conditions&implement
