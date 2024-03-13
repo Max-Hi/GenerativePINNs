@@ -151,7 +151,7 @@ class PINN_GAN(nn.Module):
         # Optimizer
         self.optimizer_G = adam.Adam(self.generator.parameters(), lr=lr[0])
         self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[1])
-        self.optimizer_PW = adam.Adam(self.discriminator.parameters(), lr=lr[0])
+        self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[0])
         
         self.e = 1e-3  # Hyperparameter for PW update
 
