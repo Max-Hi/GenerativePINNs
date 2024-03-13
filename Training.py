@@ -3,6 +3,7 @@ import numpy as np
 import scipy.io
 from pyDOE import lhs
 import time
+import os
 import matplotlib.pyplot as plt
 
 from PINN import PINN_GAN, Discriminator, Generator
@@ -55,13 +56,37 @@ boundary = np.vstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
-X_t = None # TODO for now just default
-Y_t = None
+# Training Samples with Y values
+n, m = len(x), len(t)
+k1, k2 = 20, 20  # Number of samples we want to draw
+
+idx_x = np.random.choice(n, k1, replace=False) 
+idx_t = np.random.choice(m, k2, replace=False) 
+# sample X
+sampled_x = x[idx_x]
+sampled_t = t[idx_t]
+mesh_x, mesh_t = np.meshgrid(sampled_x, sampled_t, indexing='ij')
+X_t = np.hstack((mesh_x.flatten()[:,None], mesh_t.flatten()[:,None]))
+# sample Y
+mesh_idx_x, mesh_idx_t = np.meshgrid(idx_x, idx_t, indexing='ij')
+# Use the mesh to index into u
+Y_t = np.hstack((np.real(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None],np.imag(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None]))
+
+# get name for saving
+model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
+if model_name != "":
+    taken_names = os.listdir("Saves")
+    taken_names.remove(".gitignore")
+    while model_name in list(map(lambda x: x.split("_")[0], taken_names))+["list"] or "_" in model_name:
+        model_name = input("The Name is taken or you included '_' in your name. Give your model a different name. To list existing names, enter 'list'. ")
+        if model_name == "list":
+            for name in list(map(lambda x: x[:-4], os.listdir("Saves"))):
+                print(name)
 
 # Train the model
-model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
-start_time = time.time()                
-model.train(1000)
+model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, model_name)
+start_time = time.time()         
+model.train(1500)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -69,6 +94,11 @@ print('Training time: %.4f' % (time.time() - start_time))
 y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
 u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
+
+plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+plt.legend()
+plt.savefig(model_name)
 
 # Errors
 errors = {
