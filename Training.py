@@ -61,9 +61,12 @@ Y_t = None
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
-if model_name !="":
-    while model_name in list(map(lambda x: x[:-4], os.listdir("Saves")))+["list"]:
-        model_name = input("Name taken. Give your model a different name. To list existing names, enter 'list'. ")
+if model_name != "":
+    taken_names = os.listdir("Saves")
+    taken_names.remove(".gitignore")
+    print(taken_names)
+    while model_name in list(map(lambda x: x.split("_")[0], taken_names))+["list"] or "_" in model_name:
+        model_name = input("The Name is taken or you included '_' in your name. Give your model a different name. To list existing names, enter 'list'. ")
         if model_name == "list":
             for name in list(map(lambda x: x[:-4], os.listdir("Saves"))):
                 print(name)
