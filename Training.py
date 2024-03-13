@@ -83,6 +83,13 @@ y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
 u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
+print(u_pred.shape, x.shape)
+
+plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+plt.legend()
+plt.savefig(model_name+".png")
+
 # Errors
 errors = {
         'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),

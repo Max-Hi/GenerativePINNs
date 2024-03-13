@@ -103,7 +103,9 @@ class PINN_GAN(nn.Module):
 
         # Hyperparameters
         self.q = [0.1,
-                  ]
+                  0.1,
+                  0.1,
+                  0.1]
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -141,10 +143,11 @@ class PINN_GAN(nn.Module):
         self.ub = torch.tensor(boundary[:, 1:2])
 
         # weights for the point weigthing algorithm
-        self.n_boundary_conditions = 0 # NOTE: EDIT manually (why?)
+        self.n_boundary_conditions = 3 # NOTE: EDIT manually (why?)
         self.number_collocation_points = self.x_f.shape[0]
+        self.number_boundary_points = self.x0.shape[0]
         self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
-        self.boundary_weights = [torch.full((self.number_collocation_points,), 1/self.number_collocation_points, requires_grad=False)]*self.n_boundary_conditions
+        self.boundary_weights = [torch.full((self.number_boundary_points,), 1/self.number_boundary_points, requires_grad=False)]*self.n_boundary_conditions
         
         # Sizes
         self.layers_D = layers_D
@@ -251,8 +254,31 @@ class PINN_GAN(nn.Module):
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
-        # TODO implement
-        return 0
+        loss = nn.MSELoss()
+        
+        X = self.x0
+        y = self.net_y(X)
+        u = y[:,0:1]
+        v = y[:,1:2]
+        
+        X.requires_grad_(True)
+        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
+        for i in range(y.shape[1]):  # Loop over all outputs
+            for j in range(X.shape[1]):  # Loop over all inputs
+                if X.grad is not None:
+                    X.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
+                grad_outputs = torch.zeros_like(y[:, i])
+                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
+                gradients = torch.autograd.grad(outputs=y[:, i], inputs=X, grad_outputs=grad_outputs,
+                                                create_graph=True, retain_graph=True, allow_unused=True)
+                if gradients[0] is not None:
+                    Jacobian[:, i, j] = gradients[0][:, j]
+                else:
+                    # Handle the case where the gradient is None (if allow_unused=True)
+                    Jacobian[:, i, j] = torch.zeros(X.shape[0])
+        
+        boundaries = [y-2/torch.cosh(X), self.net_y(X)-self.net_y(X), self.net_y(X)-self.net_y(X)] #TODO
+        return boundaries
 
     def forward(self, x):
         y = self.net_y(x)
@@ -276,24 +302,36 @@ class PINN_GAN(nn.Module):
         This function changes the weights used for loss calculation according to the papers formular. 
         It should be called after each iteration. 
         '''
-        # TODO: ???????????????????? boundary weight update?
-
+        boundaries = self.boundary()
+        
         rho_values = []
-        for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
-            rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
+        
+        w = self.domain_weights
+        rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
+        epsilon = 10e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+        # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
+        # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
+        alpha = self.q[0] * torch.log((1-rho+epsilon)/(rho+epsilon))
+        w_new = w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32)) / \
+            torch.sum(w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32))) # the sum sums along the values of w
+        w_new.requires_grad_(False)
+        w_new.to(torch.float32)
+        self.domain_weights = w_new
+        
+        rho_values.append(rho)
+        
+        # TODO continue here with work
+        for index, w in enumerate(self.boundary_weights):
+            rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
             epsilon = 10e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
-            w_new = w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32)) / \
-                torch.sum(w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32))) # the sum sums along the values of w
+            w_new = w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32)) / \
+                torch.sum(w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32))) # the sum sums along the values of w
             w_new.requires_grad_(False)
             w_new.to(torch.float32)
-            if index == 0:
-                self.domain_weights = w_new
-
-            else:
-                self.boundary_weights[index-1] = w_new
+            self.boundary_weights[index-1] = w_new
             
             rho_values.append(rho)
         
@@ -317,20 +355,6 @@ class PINN_GAN(nn.Module):
         '''
         # TODO: call util.py for point loss
         loss_l1 = nn.L1Loss()
-        
-        # TODO: this calculates the boundary loss. This needs to go elsewhere:
-        '''
-        self.u_lb_pred, self.v_lb_pred, self.u_x_lb_pred, self.v_x_lb_pred = self.net_uv(self.x_lb, self.t_lb) # TODO get as array
-        self.u_ub_pred, self.v_ub_pred, self.u_x_ub_pred, self.v_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)# TODO get as array
-        
-        # initial condition + boundary condition + PDE constraint
-        # TODO: incorporate weights into loss calculation
-        MSE = loss(self.u0_pred, self.u0) + loss(self.v0_pred, self.v0) + \
-            loss(self.u_lb_pred, self.u_ub_pred) + loss(self.v_lb_pred, self.v_ub_pred) + \
-            loss(self.u_x_lb_pred, self.u_x_ub_pred) + loss(self.v_x_lb_pred, self.v_x_ub_pred)
-        # NOTE what is lb pred, ub pred etc?
-        # NOTE: write L_PW outside
-        '''
         
         input_D = torch.concat((self.x0, self.y0_pred), 1)
         D_input = self.discriminator.forward(input_D)
