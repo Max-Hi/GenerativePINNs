@@ -3,6 +3,7 @@ import numpy as np
 import scipy.io
 from pyDOE import lhs
 import time
+import os
 import matplotlib.pyplot as plt
 
 from PINN import PINN_GAN, Discriminator, Generator
@@ -58,9 +59,18 @@ X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 X_t = None # TODO for now just default
 Y_t = None
 
+# get name for saving
+model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
+if model_name !="":
+    while model_name in list(map(lambda x: x[:-4], os.listdir("Saves")))+["list"]:
+        model_name = input("Name taken. Give your model a different name. To list existing names, enter 'list'. ")
+        if model_name == "list":
+            for name in list(map(lambda x: x[:-4], os.listdir("Saves"))):
+                print(name)
+
 # Train the model
-model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D)
-start_time = time.time()                
+model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, model_name)
+start_time = time.time()         
 model.train(1000)
 print('Training time: %.4f' % (time.time() - start_time))
 
