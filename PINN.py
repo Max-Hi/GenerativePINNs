@@ -250,26 +250,44 @@ class PINN_GAN(nn.Module):
         
         X = self.x0
         y = self.net_y(X)
-        u = y[:,0:1]
-        v = y[:,1:2]
+        X_lb = self.x_lb
+        X_ub = self.x_lb
+        y_lb = self.net_y(X_lb)
+        y_ub = self.net_y(X_ub)
         
-        X.requires_grad_(True)
-        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
-        for i in range(y.shape[1]):  # Loop over all outputs
-            for j in range(X.shape[1]):  # Loop over all inputs
-                if X.grad is not None:
-                    X.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
+        X_lb.requires_grad_(True)
+        Jacobian_lb = torch.zeros(X_lb.shape[0], y_lb.shape[1], X_lb.shape[1])
+        for i in range(y_lb.shape[1]):  # Loop over all outputs
+            for j in range(X_lb.shape[1]):  # Loop over all inputs
+                if X_lb.grad is not None:
+                    X_lb.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
                 grad_outputs = torch.zeros_like(y[:, i])
                 grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y[:, i], inputs=X, grad_outputs=grad_outputs,
+                gradients = torch.autograd.grad(outputs=y_lb[:, i], inputs=X_lb, grad_outputs=grad_outputs,
                                                 create_graph=True, retain_graph=True, allow_unused=True)
                 if gradients[0] is not None:
-                    Jacobian[:, i, j] = gradients[0][:, j]
+                    Jacobian_lb[:, i, j] = gradients[0][:, j]
                 else:
                     # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian[:, i, j] = torch.zeros(X.shape[0])
+                    Jacobian_lb[:, i, j] = torch.zeros(X_lb.shape[0])
         
-        boundaries = [y-2/torch.cosh(X), self.net_y(X)-self.net_y(X), self.net_y(X)-self.net_y(X)] #TODO
+        X_ub.requires_grad_(True)
+        Jacobian_ub = torch.zeros(X_ub.shape[0], y_ub.shape[1], X_ub.shape[1])
+        for i in range(y_ub.shape[1]):  # Loop over all outputs
+            for j in range(X_ub.shape[1]):  # Loop over all inputs
+                if X_ub.grad is not None:
+                    X_ub.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
+                grad_outputs = torch.zeros_like(y[:, i])
+                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
+                gradients = torch.autograd.grad(outputs=y_ub[:, i], inputs=X_ub, grad_outputs=grad_outputs,
+                                                create_graph=True, retain_graph=True, allow_unused=True)
+                if gradients[0] is not None:
+                    Jacobian_ub[:, i, j] = gradients[0][:, j]
+                else:
+                    # Handle the case where the gradient is None (if allow_unused=True)
+                    Jacobian_ub[:, i, j] = torch.zeros(X_ub.shape[0])
+        
+        boundaries = [y-2/torch.cosh(X), y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
 
@@ -356,7 +374,7 @@ class PINN_GAN(nn.Module):
         
         L_T = self.loss_T()
 
-        return L_T + L_D
+        return 1000*L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -431,6 +449,8 @@ class PINN_GAN(nn.Module):
                 break
                 
     def predict(self, X_star):
+        '''
         y_star = self.generator.forward(X_star)
-        f_star = self.net_f(X_star) #TODO implement
+        f_star = self.net_f(X_star) '''
+        y_star, f_star = self.forward(X_star)
         return y_star.detach().numpy(), f_star.detach().numpy()
