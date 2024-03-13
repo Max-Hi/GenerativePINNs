@@ -127,16 +127,8 @@ class PINN_GAN(nn.Module):
         self.x_f = torch.tensor(X_f, requires_grad=True)
         
         # training points that have values
-        if X_t is None:
-            self.x_t = None
-            self.t_t = None
-            self.u_t = None
-            self.v_t = None
-        else:
-            self.x_t = torch.tensor(X_t[:,0])
-            self.t_t = torch.tensor(X_t[:,1])
-            self.u_t = torch.tensor(Y_t[:,0])
-            self.v_t = torch.tensor(Y_t[:,1])
+        self.x_t = torch.tensor(X_t)
+        self.y_t = torch.tensor(Y_t)
         
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
@@ -344,9 +336,9 @@ class PINN_GAN(nn.Module):
         '''
         loss = nn.MSELoss()
         
-        self.y_pred = self.net_y(self.x)
+        self.y_t_pred = self.net_y(self.x_t)
         
-        return loss(self.y_pred, self.y_t)
+        return loss(self.y_t_pred, self.y_t)
     
     def loss_G(self):
         ''' 
@@ -362,15 +354,14 @@ class PINN_GAN(nn.Module):
         L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
         
-        L_T = 0 # TODO call L_T for now default value
+        L_T = self.loss_T()
 
         return L_T + L_D
 
-        # TODO : implement boundary data and boundary condition for GAN
+        # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
         # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
 
-    
     def loss_PW(self):
         
         f_loss = weighted_MSELoss()
@@ -400,7 +391,6 @@ class PINN_GAN(nn.Module):
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
-
 
     def train(self, epochs = 1e+4, start_epoch=0, n_critic = 2):
         # Training
@@ -440,8 +430,6 @@ class PINN_GAN(nn.Module):
                     self.save(epoch, n_critic)
                 break
                 
-
-
     def predict(self, X_star):
         y_star = self.generator.forward(X_star)
         f_star = self.net_f(X_star) #TODO implement
