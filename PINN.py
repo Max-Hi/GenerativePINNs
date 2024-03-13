@@ -33,13 +33,12 @@ class Generator(nn.Module):
         self.layers = layers_G
         self.info_for_error = info_for_error
         self.model = nn.Sequential()
-        # TODO: baseline structure to be altered 
+        # TODO: baseline structure to be altered: More than fully connected
         for l in range(0, len(self.layers) - 2):
             self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
             self.model.add_module("tanh" + str(l), nn.Tanh())
         self.model.add_module("linear" + str(len(self.layers) - 2), nn.Linear(self.layers[-2], self.layers[-1]))
         self.model = self.model.double()
-        
     def forward(self, x):
         try:
             return self.model(x)
@@ -58,14 +57,13 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.layers = layers_D
         self.info_for_error = info_for_error
-        # NOTE: discriminator input dim = dim(x) * dim(G(x))
         self.model = nn.Sequential()
         # TODO: baseline structure to be altered 
         for l in range(0, len(self.layers) - 1):
             self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
             self.model.add_module("tanh" + str(l), nn.Tanh())
-        self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid())
-        self.model = self.model.double() 
+        self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid()) 
+        self.model = self.model.double()
     def forward(self, x):
         try:
             return self.model(x)
@@ -235,24 +233,16 @@ class PINN_GAN(nn.Module):
         rho_cond = 1e-5
         rho_is_one = True # rho_is_one stays true if all rho are one within an error of rho_cond
         for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
-            # print("e: ", e)
             rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
-            print(rho)
-            if abs(rho-1)>rho_cond:
+            if rho>rho_cond:
                 rho_is_one = False
-            '''print("rho alpha stuff")
-            print(self.beta(f_u_pred, f_v_pred, e))
-            print("rho: ", rho)'''
+            
             epsilon = 10e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
-            # print("alpha: ", alpha)
             w_new = w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32)) / \
                 torch.sum(w*torch.exp(-alpha*self.beta(f_pred, e).to(torch.float32))) # the sum sums along the values of w
-            '''print("w_new partly 1: ", w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1))
-            print("w_new partly 2: ", torch.sum(w*torch.exp(-alpha*self.beta(f_u_pred, f_v_pred, e)).transpose(0,1)))
-            print("w_new: ", w_new )'''
             w_new.requires_grad_(False)
             w_new.to(torch.float32)
             if index == 0:
@@ -302,8 +292,6 @@ class PINN_GAN(nn.Module):
                     D_input)
         
         L_T = 0 # TODO call L_T for now default value
-
-        # NOTE: dimensionality
 
         return L_T + L_D
 
@@ -373,7 +361,7 @@ class PINN_GAN(nn.Module):
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
             
-            if rho_is_one:
+            if rho_is_one and epoch>10:
                 break
                 
 
