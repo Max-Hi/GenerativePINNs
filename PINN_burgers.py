@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.optim import adam
+# from utils.plot.py import 
 torch.set_default_dtype(torch.float32)
 
 # set random seeds for reproducability
@@ -78,14 +79,18 @@ class PINN_GAN_burgers(nn.Module):
         super(PINN_GAN_burgers, self).__init__()
 
         # Hyperparameters
-        self.q = [0.1,]
+        self.q = 1e-4
+        self.e_boundary = 2e-2  # Hyperparameter for PW update
+        self.e_interior = 5e-4
+        
+        self.nu = nu # PDE parameter
         
         # exact solution 
         self.X_exact = torch.tensor(X_exact, requires_grad=True, dtype = torch.float32)
         self.x_exact = torch.tensor(X_exact[:, :-1], requires_grad=True, dtype = torch.float32)
         self.t_exact = torch.tensor(X_exact[:, -1:], requires_grad=True, dtype = torch.float32)
         self.u_exact = torch.tensor(u_exact).to(torch.float32)
-        self.u_exact = torch.unsqueeze(self.u_exact, 1)
+        # self.u_exact = torch.unsqueeze(self.u_exact, 1)
         self.u_exact.requires_grad_(True)
 
         # initial data
@@ -119,12 +124,17 @@ class PINN_GAN_burgers(nn.Module):
         self.lb = torch.tensor(boundary[:, 0:1])
         self.ub = torch.tensor(boundary[:, 1:2])
 
-
+        print(self.u_exact.shape)
+        print(self.X_exact.shape)
+        print(self.X_lb.shape)
+        print(self.u_lb.shape)
+        print(self.X0.shape)
+        print(self.u0.shape)
         # input for discriminator
-        self.input_D = torch.vstack((torch.concat((self.X_exact, self.u_exact), 1), \
-                               torch.concat((self.X_lb, self.u_lb), 1),\
-                               torch.concat((self.X_ub, self.u_ub), 1),
-                               torch.concat((self.X0, self.u0), 1)))
+        self.input_D = torch.vstack((torch.cat((self.X_exact, self.u_exact), 1), \
+                               torch.cat((self.X_lb, self.u_lb), 1),\
+                               torch.cat((self.X_ub, self.u_ub), 1),
+                               torch.cat((self.X0, self.u0), 1)))
         
         # weights for the point weighting algorithm
         self.n_boundary_conditions = num_boundary_conditions # NOTE: how to generalize?
@@ -141,8 +151,7 @@ class PINN_GAN_burgers(nn.Module):
         self.generator = Generator(self.layers_G)
         self.discriminator = Discriminator(self.layers_D)
         
-        self.e = 1e-3  # Hyperparameter for PW update
-        self.nu = nu # PDE parameter
+
     # calculate the function h(x, t) using neurl nets
     # NOTE: regard net_uv as baseline  
     def net_uv(self, x, t):
@@ -153,7 +162,7 @@ class PINN_GAN_burgers(nn.Module):
         # NOTE: ????
         u = self.generator.forward(X)
 
-        self.u = u
+        self.u = torch.unsqueeze(u, 1)
         u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0] # create_graph=True
         return u, u_x
 
@@ -180,9 +189,11 @@ class PINN_GAN_burgers(nn.Module):
         f_u_pred: PDE equation function which should be close to zero
         e: a hyperparameter that is a measure for the exactness to which N should approximate u
         '''
-        beta = (torch.norm(pred_val) <= e).to(torch.float32) - (torch.norm(pred_val) > e).to(torch.float32)
+        
+        beta = (torch.norm(pred_val, dim=1) <= e).to(torch.float32) - (torch.norm(pred_val, dim=1) > e).to(torch.float32)
         beta.requires_grad_(False)
-        return beta
+        # print(beta.shape)
+        return torch.unsqueeze(beta, 1)
     
     def weight_update(self):
         # f_pred 
@@ -192,7 +203,7 @@ class PINN_GAN_burgers(nn.Module):
         NOT independent of the PDE given.
         '''
         # NOTE: the error wrt observation is also here
-        e = self.e
+        
         boundary_loss_list = [
             self.u_exact_pred-self.u_exact,
             self.u0_pred-self.u0,
@@ -202,22 +213,26 @@ class PINN_GAN_burgers(nn.Module):
     
         for index, w in enumerate([self.domain_weights] + self.boundary_weights): # concatenate lists with domain and boundary weights
             # print("e: ", e)
-            if index == 0:
+            if index == 0: # inside domain
                 f_update = self.f_u_pred
+                e = self.e_interior
             else:
                 f_update = boundary_loss_list[index-1]
-            rho = torch.sum(w*(self.beta(f_update, e)==-1.0).transpose(0,1))
+                e = self.e_boundary
+            
+            rho = torch.sum(w*((self.beta(f_update, e)==-1.0).transpose(0,1)))
 
-            epsilon = 10e-4 # this is added to rho because rho has a likelihood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+            epsilon = 1e-8 # this is added to rho because rho has a likelihood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
-            alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
+            alpha = self.q * torch.log((1-rho+epsilon)/(rho+epsilon))
+            # print(self.beta(f_update, e).shape)
             # print("alpha: ", alpha)
             w_new = w*torch.exp(-alpha*self.beta(f_update, e).to(torch.float32)).transpose(0,1) / \
                 torch.sum(w*torch.exp(-alpha*self.beta(f_update, e).to(torch.float32)).transpose(0,1)) # the sum sums along the values of w
             w_new.requires_grad_(False)
             w_new.to(torch.float32)
-            
+            # print(w_new.shape)
             if index == 0:
                 self.domain_weights = w_new
             else:
@@ -236,6 +251,8 @@ class PINN_GAN_burgers(nn.Module):
         self.u_lb_pred, self.u_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
         self.u_ub_pred, self.u_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
         self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
+        self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
+        self.u0_pred, _ = self.net_uv(self.x0, self.t0)
         
         # print("loss stuff")
         # print(self.f_u_pred)
@@ -252,28 +269,48 @@ class PINN_GAN_burgers(nn.Module):
         # initial condition + boundary condition
 
         # write L_PW outside
-        MSE = loss(self.u_exact_pred, self.u_exact)
-        
-        D_output = self.discriminator.model(self.input_D)
+        # MSE = loss(self.u_exact_pred, self.u_exact)
+        f_loss = nn.MSELoss()
+        L_T = f_loss(self.u_exact_pred, self.u_exact) + \
+            f_loss(self.u0_pred, self.u0) + \
+            f_loss(self.u_lb_pred, self.u_lb) + \
+            f_loss(self.u_ub_pred, self.u_ub)
+        #f_loss(self.u0_pred, self.u0) + \
+        input_D_G = torch.concat((self.X_exact, self.u_exact_pred), 1)
+        D_output = self.discriminator(input_D_G)
         L_D = loss_l1(torch.ones_like(D_output), 
-                    D_output)
+                     D_output)
+        # D_output = self.discriminator.model(self.input_D)
+        # L_D = loss_l1(torch.ones_like(D_output), 
+        #             D_output)
         # NOTE: dimensionality
-
-        return MSE + L_D
+        
+        return L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
-        # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
 
     
     def loss_PW(self):
-        
-        f_loss = weighted_MSELoss()
-        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
-                f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
-                f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
-                f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[0].to(torch.float32)) + \
-                f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[1].to(torch.float32))
+        self.u_lb_pred, self.u_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
+        self.u_ub_pred, self.u_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
+        self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
+        self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
+        self.u0_pred, _ = self.net_uv(self.x0, self.t0)
+
+        f_loss = nn.MSELoss()
+
+        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + \
+        f_loss(self.u_exact_pred, self.u_exact) + \
+        f_loss(self.u0_pred, self.u0) + \
+        f_loss(self.u_lb_pred, self.u_lb) + \
+        f_loss(self.u_ub_pred, self.u_ub)
+        # f_loss = weighted_MSELoss()
+        # L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
+        #         f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
+        #         f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
+        #         f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[0].to(torch.float32)) + \
+        #         f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[1].to(torch.float32))
 
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
@@ -300,38 +337,43 @@ class PINN_GAN_burgers(nn.Module):
         return loss_D
 
 
-    def train(self, epochs = 1e-4, lr_G = 1e-3, lr_D = 2e-4, n_critic = 2):
+    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, n_critic = 1):
         # Optimizer
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
-        optimizer_PW = adam.Adam(self.discriminator.parameters(), lr=lr_G)
+        optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G)
         # Training
+
         for epoch in tqdm(range(epochs)):
             # TODO done?
             self.u0_pred, _  = self.net_uv(self.x0, self.t0)
+     
             self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
             self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
             optimizer_D.zero_grad()
             loss_Discr = self.loss_D()
-            loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
-            if epoch % n_critic == 0:
-                optimizer_G.zero_grad()
-                optimizer_PW.zero_grad()
-                loss_G = self.loss_G()
-                loss_G.backward(retain_graph=True)
-                # Update PW loss
-                # self.weight_update(self.f_u_pred, self.f_v_pred, self.e)
-                
-                loss_PW = self.loss_PW()
-                loss_PW.backward(retain_graph=True)
-                optimizer_PW.step()
-                optimizer_G.step()
+            # loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
+            #if epoch % n_critic == 0:
+            optimizer_G.zero_grad()
+            optimizer_PW.zero_grad()
+            loss_G = self.loss_G()
+            loss_G.backward(retain_graph=True)
+            # Update PW loss
+            self.weight_update()
+            
+            loss_PW = self.loss_PW()
+            loss_PW.backward(retain_graph=True)
             optimizer_D.step()
+            optimizer_G.step()
+            optimizer_PW.step()
+            
             # weight updates
   
-            if epoch % 100 == 0:
-                print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
-                
+            if epoch % 10 == 0:
+                print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e, Loss_PW: %.3e' % (epoch, loss_G.item(), loss_Discr.item(), loss_PW.item()))
+                u_pred, _ = self.predict(X_star)
+                errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
+                print('Errors: ', errors)
 
 
     def predict(self, X_star):
@@ -339,3 +381,6 @@ class PINN_GAN_burgers(nn.Module):
         u_star = self.generator.forward(X_star)
         f_u_star = self.net_f_uv(X_star[:,0:1], X_star[:,1:2])
         return u_star.detach().numpy(),  f_u_star.detach().numpy()
+
+
+    
