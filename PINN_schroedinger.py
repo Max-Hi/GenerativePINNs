@@ -249,8 +249,6 @@ class PINN_GAN(nn.Module):
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
-        loss = nn.MSELoss()
-        
         X = self.x0
         y = self.net_y(X)
         X_lb = self.x_lb

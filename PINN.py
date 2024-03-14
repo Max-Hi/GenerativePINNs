@@ -217,7 +217,7 @@ class PINN_GAN(nn.Module):
         v = y[:,1:2]
         
         X.requires_grad_(True)
-        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
+        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1]) # Jacobian[:,i,j:j+1] will create a (:,1) shaped gradient of the ith y entry with regard to the jth x entry.
         for i in range(y.shape[1]):  # Loop over all outputs
             for j in range(X.shape[1]):  # Loop over all inputs
                 if X.grad is not None:
@@ -249,8 +249,6 @@ class PINN_GAN(nn.Module):
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
-        loss = nn.MSELoss()
-        
         X = self.x0
         y = self.net_y(X)
         X_lb = self.x_lb
