@@ -85,7 +85,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb: list, X_ub: list, boundary, layers_G: list, layers_D: list, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1), k: float=1.0):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb: list, X_ub: list, boundary, layers_G: list, layers_D: list, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -98,12 +98,9 @@ class PINN_GAN(nn.Module):
         layers: the number of neurons in each layer (_D for discriminator, _G for generator)
         model_name: the name the model is saved under. If the name is an empty string, it is not saved. This is the default.
         lr: the learning rate as a tupel
-        k: a parameter for the PDE
         """
         super(PINN_GAN, self).__init__()
 
-        self.k = k
-        
         # Hyperparameters
         self.q = [
             0.1,
@@ -240,9 +237,9 @@ class PINN_GAN(nn.Module):
             d2y_dx2_2_i = torch.autograd.grad(dy_dx2, X, grad_outputs=torch.ones_like(dy_dx2), create_graph=True)[0][:, 1]
             
             # Store the computed second derivative in the placeholder tensor
-            d2y_dx2_2[:, i] = d2y_dx2_2_i 
-            
-        f = d2y_dx1_2 + d2y_dx2_2 + self.k*y**2
+            d2y_dx2_2[:, i] = d2y_dx2_2_i     
+
+        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X)*torch.sin(torch.pi*y)
         return f.to(torch.float32)
 
     def boundary(self):
@@ -255,7 +252,7 @@ class PINN_GAN(nn.Module):
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
         
-        boundaries = [torch.sin(self.k*X1_lb)-y1_lb,torch.sin(self.k*X1_ub)-y1_ub,torch.sin(self.k*X2_lb)-y2_lb,torch.sin(self.k*X2_ub)-y2_ub]
+        boundaries = [y1_lb, y1_ub, y2_lb, y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
 
