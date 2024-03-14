@@ -9,6 +9,7 @@ import matplotlib.gridspec as gridspec
 #mpl.use('pgf')
 
 
+# further TODO: network structure : ResNet, RNN, etc
 
 
 def figsize(scale, nplots = 1):
@@ -48,7 +49,7 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     #     ]
     # }
     # mpl.rcParams.update(pgf_with_latex)
-    fig, axs = plt.subplots(nrows=1, ncols = 2, figsize = (12, 8))
+    fig, axs = plt.subplots(nrows=1, ncols = 2, figsize = (10, 8))
     # error_u = np.linalg.norm(output_vec-ground_truth)
     U_pred = griddata(X_star, output_vec.flatten(), (X, T), method = "cubic")
     U_actual = griddata(X_star, ground_truth.flatten(), (X, T), method = "cubic")
@@ -75,6 +76,24 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     plt.savefig(filename)
     plt.show()
 
+def plot_loss(loss_history, filename):
+    import seaborn as sns
+    """loss_history: dictionary"""
+    epoch = loss_history["epoch"]
+
+    plt.figure(figsize=(8, 6))
+    for label in loss_history.keys():
+        if label != "epoch" :
+            sns.lineplot(x=epoch, y=loss_history[label], label = label)
+
+    plt.title('Loss Descent Over Training')
+    plt.xlabel('epochs')
+    plt.ylabel('Loss')
+    plt.grid(True)
+    plt.savefig(filename)
+    plt.show()
     
+
+
 
 

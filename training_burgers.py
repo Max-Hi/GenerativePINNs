@@ -5,8 +5,8 @@ from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
 from PINN_burgers import PINN_GAN_burgers, Discriminator, Generator
-from utils.plot import plot_with_ground_truth
-
+from utils.plot import plot_with_ground_truth, plot_loss
+import pickle
 torch.set_default_dtype(torch.float32)
 # random seed for reproduceability
 np.random.seed(42)
@@ -60,8 +60,7 @@ x_exact = X_exact[:,0]
 t_exact = X_exact[:,1]
 
 u_exact = u_star[idx, :]
-print(u_exact.shape)
-print(X_exact.shape)
+
 
 # Collocation points
 X_f = lb + (ub-lb)*lhs(2, N_f)
@@ -69,7 +68,6 @@ X_f = lb + (ub-lb)*lhs(2, N_f)
 # initial points
 x0 = np.linspace(-1, 1, N0, endpoint = True)
 X0 = np.vstack((x0, np.zeros_like(x0, dtype=np.float32))).transpose() # (x, 0)
-print(X0.shape)
 # boundary points
 boundary = np.vstack((lb, ub))
 X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
@@ -78,19 +76,25 @@ X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
 num_boundary_conditions = 4
 # Train the model
-model = PINN_GAN_burgers(X_exact, u_exact, nu, X_f, X0, X_lb, X_ub, boundary, num_boundary_conditions, layers_G, layers_D)
-start_time = time.time()                
-model.train(X_star, u_star, epochs=200)
-print('Training time: %.4f' % (time.time() - start_time))
+# model = PINN_GAN_burgers(X_exact, u_exact, nu, X_f, X0, X_lb, X_ub, boundary, num_boundary_conditions, layers_G, layers_D)
+# start_time = time.time()                
+# model.train(X_star, u_star, epochs=500)
+# print('Training time: %.4f' % (time.time() - start_time))
 
 
 # Predictions
-u_pred, _ = model.predict(X_star)
-torch.save(u_pred, "burgers_pred.pt")
-print(u_pred.shape)
-print(u_star.shape)
-# Errors
-errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
-print('Errors: ', errors)
+# u_pred, _ = model.predict(X_star)
 
+# torch.save(u_pred, "burgers_pred.pt")
+
+# Errors
+# errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
+# print('Errors: ', errors)
+
+# plot result
+mat = torch.load("burgers_pred.pt")
 plot_with_ground_truth(mat, X_star, X , T, u_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+# plot errors
+with open('loss_history_burgers.pkl', 'rb') as f:
+    loaded_dict = pickle.load(f)
+plot_loss(loaded_dict,'loss_history_burgers.png')

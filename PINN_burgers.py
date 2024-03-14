@@ -6,7 +6,7 @@ from tqdm import tqdm
 # from scipy.integrate import odeint
 
 import matplotlib.pyplot as plt
-
+import pickle
 import torch
 import torch.nn as nn
 from torch.optim import adam
@@ -124,12 +124,12 @@ class PINN_GAN_burgers(nn.Module):
         self.lb = torch.tensor(boundary[:, 0:1])
         self.ub = torch.tensor(boundary[:, 1:2])
 
-        print(self.u_exact.shape)
-        print(self.X_exact.shape)
-        print(self.X_lb.shape)
-        print(self.u_lb.shape)
-        print(self.X0.shape)
-        print(self.u0.shape)
+        # print(self.u_exact.shape)
+        # print(self.X_exact.shape)
+        # print(self.X_lb.shape)
+        # print(self.u_lb.shape)
+        # print(self.X0.shape)
+        # print(self.u0.shape)
         # input for discriminator
         self.input_D = torch.vstack((torch.cat((self.X_exact, self.u_exact), 1), \
                                torch.cat((self.X_lb, self.u_lb), 1),\
@@ -262,7 +262,7 @@ class PINN_GAN_burgers(nn.Module):
         # print("weights")
         # print(self.domain_weights)
         
-        # TODO : instead of taking only initial observation from exact data, 
+        # instead of taking only initial observation from exact data, 
         # take observations that are scattered across the whole solution frame
         # since most initial/boundary data are formulated in an accessible way
         
@@ -278,7 +278,7 @@ class PINN_GAN_burgers(nn.Module):
         #f_loss(self.u0_pred, self.u0) + \
         input_D_G = torch.concat((self.X_exact, self.u_exact_pred), 1)
         D_output = self.discriminator(input_D_G)
-        L_D = loss_l1(torch.ones_like(D_output), 
+        L_D = loss_l1(torch.zeros_like(D_output), 
                      D_output)
         # D_output = self.discriminator.model(self.input_D)
         # L_D = loss_l1(torch.ones_like(D_output), 
@@ -337,13 +337,14 @@ class PINN_GAN_burgers(nn.Module):
         return loss_D
 
 
-    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, n_critic = 1):
+    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, lr_decay = 0.7, n_critic = 1, ):
         # Optimizer
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
         optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G)
         # Training
-
+        loss_history = {"epoch":[], "loss_G":[], "loss_D": [], "loss_PW":[], "loss_u": []}
+        
         for epoch in tqdm(range(epochs)):
             # TODO done?
             self.u0_pred, _  = self.net_uv(self.x0, self.t0)
@@ -366,14 +367,29 @@ class PINN_GAN_burgers(nn.Module):
             optimizer_D.step()
             optimizer_G.step()
             optimizer_PW.step()
-            
+            # TODO: dynamic learning rate:
+            # record the last 2 updates of the u loss. If no significant improvement happened, 
+            # decrease the learning rate by a parameter lambda. 
+
             # weight updates
-  
+            # record the loss and plot the loss
+
+            loss_history["epoch"].append(epoch)
+            loss_history["loss_G"].append(loss_G.item())
+            loss_history["loss_D"].append(loss_Discr.item())
+            loss_history["loss_PW"].append(loss_PW.item())
             if epoch % 10 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e, Loss_PW: %.3e' % (epoch, loss_G.item(), loss_Discr.item(), loss_PW.item()))
                 u_pred, _ = self.predict(X_star)
-                errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
+                loss_u = np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)
+                errors = {'u': loss_u}
                 print('Errors: ', errors)
+                if loss_u-loss_history["loss_u"][-1]>1e-3:
+                    optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
+                    optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
+            loss_history["loss_u"].append(loss_u)
+        with open('loss_history_burgers.pkl', 'wb') as f:
+                pickle.dump(loss_history, f)
 
 
     def predict(self, X_star):
