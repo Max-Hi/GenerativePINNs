@@ -1,6 +1,4 @@
-"""
-Acknowledgement: from @author: mraissi
-"""
+
 
 import numpy as np
 import matplotlib as mpl
@@ -50,12 +48,12 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     #     ]
     # }
     # mpl.rcParams.update(pgf_with_latex)
-    fig, axs = plt.subplots(nrows=1, ncols = 2, figsize = (10, 10))
+    fig, axs = plt.subplots(nrows=1, ncols = 2, figsize = (12, 8))
     # error_u = np.linalg.norm(output_vec-ground_truth)
     U_pred = griddata(X_star, output_vec.flatten(), (X, T), method = "cubic")
     U_actual = griddata(X_star, ground_truth.flatten(), (X, T), method = "cubic")
     gs0 = gridspec.GridSpec(2, 1)
-    gs0.update(top=1-0.06, bottom=1-1.0/3.0+0.06, left=0.15, right=0.85, wspace=0)
+    gs0.update(top=1-0.06, bottom=0.06, left=0.15, right=0.85, wspace=5)
     ax = plt.subplot(gs0[0, :])
     
     h = ax.imshow(U_pred.T, interpolation='nearest', cmap='rainbow', 
@@ -64,6 +62,7 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     fig.colorbar(h, cax=cax)
+    ax.set_title('Predicted')
 
     ax2 = plt.subplot(gs0[1, :])
     h2 = ax2.imshow(U_actual.T,interpolation='nearest', cmap='rainbow', 
@@ -72,7 +71,8 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     divider2 = make_axes_locatable(ax2)
     cax2 = divider2.append_axes("right", size="5%", pad=0.05)
     fig.colorbar(h2, cax=cax2)
-
+    ax2.set_title('Ground Truth')
+    plt.savefig(filename)
     plt.show()
 
     
