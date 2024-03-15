@@ -213,8 +213,6 @@ class PINN_GAN(nn.Module):
     
     def _net_f(self, X):
         y = self.net_y(X)
-        u = y[:,0:1]
-        v = y[:,1:2]
         
         X.requires_grad_(True)
         Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1]) # Jacobian[:,i,j:j+1] will create a (:,1) shaped gradient of the ith y entry with regard to the jth x entry.
@@ -242,53 +240,28 @@ class PINN_GAN(nn.Module):
             d2y_dx1_2_i = torch.autograd.grad(dy_dx1, X, grad_outputs=torch.ones_like(dy_dx1), create_graph=True)[0][:, 0]
             
             # Store the computed second derivative in the placeholder tensor
-            d2y_dx1_2[:, i] = d2y_dx1_2_i      
+            d2y_dx1_2[:, i] = d2y_dx1_2_i  
+        
+        d2y_dx2_2 = torch.zeros(X.shape[0], y.shape[1])
+        for i in range(y.shape[1]):  # Loop over each output component of y
+            # Compute the first derivative of y[i] with respect to x1
+            dy_dx2 = torch.autograd.grad(y[:, i], X, grad_outputs=torch.ones(X.shape[0], device=X.device), create_graph=True)[0][:, 1]
+            
+            # Compute the second derivative of y[i] with respect to x1
+            # This is the gradient of the first derivative dy_dx1 with respect to x1 again
+            d2y_dx2_2_i = torch.autograd.grad(dy_dx2, X, grad_outputs=torch.ones_like(dy_dx2), create_graph=True)[0][:, 1]
+            
+            # Store the computed second derivative in the placeholder tensor
+            d2y_dx2_2[:, i] = d2y_dx2_2_i      
 
-        f_u = Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
-        f_v = Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
-        return torch.concat((f_u, f_v),1).to(torch.float32)
+        f = Jacobian[:,0,2:3] - d2y_dx1_2 - d2y_dx2_2
+        return f.to(torch.float32)
 
     def boundary(self):
         X = self.x0
         y = self.net_y(X)
-        X_lb = self.x_lb
-        X_ub = self.x_lb
-        y_lb = self.net_y(X_lb)
-        y_ub = self.net_y(X_ub)
         
-        X_lb.requires_grad_(True)
-        Jacobian_lb = torch.zeros(X_lb.shape[0], y_lb.shape[1], X_lb.shape[1])
-        for i in range(y_lb.shape[1]):  # Loop over all outputs
-            for j in range(X_lb.shape[1]):  # Loop over all inputs
-                if X_lb.grad is not None:
-                    X_lb.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
-                grad_outputs = torch.zeros_like(y[:, i])
-                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y_lb[:, i], inputs=X_lb, grad_outputs=grad_outputs,
-                                                create_graph=True, retain_graph=True, allow_unused=True)
-                if gradients[0] is not None:
-                    Jacobian_lb[:, i, j] = gradients[0][:, j]
-                else:
-                    # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian_lb[:, i, j] = torch.zeros(X_lb.shape[0])
-        
-        X_ub.requires_grad_(True)
-        Jacobian_ub = torch.zeros(X_ub.shape[0], y_ub.shape[1], X_ub.shape[1])
-        for i in range(y_ub.shape[1]):  # Loop over all outputs
-            for j in range(X_ub.shape[1]):  # Loop over all inputs
-                if X_ub.grad is not None:
-                    X_ub.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
-                grad_outputs = torch.zeros_like(y[:, i])
-                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y_ub[:, i], inputs=X_ub, grad_outputs=grad_outputs,
-                                                create_graph=True, retain_graph=True, allow_unused=True)
-                if gradients[0] is not None:
-                    Jacobian_ub[:, i, j] = gradients[0][:, j]
-                else:
-                    # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian_ub[:, i, j] = torch.zeros(X_ub.shape[0])
-        
-        boundaries = [y-2/torch.cosh(X), y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]]
+        boundaries = [y-(X[:,0:1]-X[:,1:2])]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
 

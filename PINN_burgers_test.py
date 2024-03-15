@@ -16,7 +16,7 @@ torch.set_default_dtype(torch.float32)
 # set random seeds for reproducability
 np.random.seed(42)
 torch.manual_seed(42)
-
+torch._C._set_mkldnn_enabled(False)
 device = (
         "cuda"
         if torch.cuda.is_available()
@@ -42,7 +42,8 @@ class Generator(nn.Module):
         
     def forward(self, x):
         return self.model(x)
-
+# TODO: try a different variant of GAN 
+    #link: https://github.com/Mohanned-Elkholy/ResNet-GAN  
 class Discriminator(nn.Module):
     def __init__(self, layers_D):
         super(Discriminator, self).__init__()
@@ -58,6 +59,24 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.model(x)
     
+class Generator_LSTM(nn.Module):
+    def __init__(self, layers_G):
+        super(Generator_LSTM, self).__init__()
+        self.layers = layers_G
+        self.num_layers = 2
+        # input_size, hidden_size, num_layers, output_size
+        self.lstm = nn.LSTM(self.layers[0],self.layers[1], self.num_layers, batch_first= True)
+        self.linear = nn.Linear(self.layers[1], self.layers[-1])
+    def forward(self, x):
+        # print(x.unsqueeze(1).shape)
+        out, _ = self.lstm(x.unsqueeze(1))#, (h0, c0))  # Forward pass through LSTM layer
+        out = self.linear(out[:, -1, :]) 
+        return out
+
+class Generator_ResNet(nn.Module):
+    def __init__(self, layers_G):
+        return
+
 class weighted_MSELoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -148,7 +167,7 @@ class PINN_GAN_burgers(nn.Module):
         self.layers_D = layers_D
         self.layers_G = layers_G
         
-        self.generator = Generator(self.layers_G)
+        self.generator = Generator_LSTM(self.layers_G)
         self.discriminator = Discriminator(self.layers_D)
         
 
@@ -337,7 +356,7 @@ class PINN_GAN_burgers(nn.Module):
         return loss_D
 
 
-    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, lr_decay = 0.7, n_critic = 1, ):
+    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 5e-2, lr_D = 5e-3, lr_decay = 0.7, n_critic = 1):
         # Optimizer
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
@@ -384,9 +403,10 @@ class PINN_GAN_burgers(nn.Module):
                 loss_u = np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)
                 errors = {'u': loss_u}
                 print('Errors: ', errors)
-                if loss_u-loss_history["loss_u"][-1]>1e-3:
-                    optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
-                    optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
+                if epoch > 10:
+                    if loss_u-loss_history["loss_u"][-1]>1e-3:
+                        optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
+                        optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G*lr_decay)
             loss_history["loss_u"].append(loss_u)
         with open('loss_history_burgers.pkl', 'wb') as f:
                 pickle.dump(loss_history, f)
