@@ -84,7 +84,10 @@ if model_name != "":
                 print(name)
 
 # Train the model
-model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, model_name)
+
+model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+                 layers_G= layers_G, layers_D = layers_D, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
 start_time = time.time()         
 model.train(6500)
 print('Training time: %.4f' % (time.time() - start_time))
