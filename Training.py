@@ -21,8 +21,8 @@ N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 2]
-layers_D = [4, 100, 100, 1]
+layers_G = [2, 100, 100, 100, 100, 1]
+layers_D = [3, 100, 100, 1]
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
@@ -46,9 +46,26 @@ if model_name != "":
 
 # Train the model
 
-model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+match pde:
+    case "schroedinger":
+        model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
+    case "burgers":
+        nu = 1e-2/np.pi 
+        model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+                 layers_G= layers_G, layers_D = layers_D, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu)
+    case "heat":
+        pass
+    case "poisson":
+        pass
+    case "poissonHD":
+        pass
+    case "helmholtz":
+        pass
+    case _:
+        print("pde not recognised")
 start_time = time.time()         
 model.train(6500, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))

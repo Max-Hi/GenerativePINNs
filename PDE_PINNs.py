@@ -363,20 +363,64 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         return boundaries
     
 class Burgers_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1), nu: float=0.01/np.pi):
     
         if model_name!="":
             model_name = "burgers"+model_name
-        super(Burgers_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
-
-        print("not yet implemented. It is in a seperate implementation currently")
+        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
         
-        n_boundaries = [] # TODO
+        self.nu = nu
+        
+        n_boundaries = [self.y0.shape[0], self.x_lb.shape[0], self.x_ub.shape[0]] # TODO
         self.number_collocation_points = self.x_f.shape[0]
         self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        
+    def _net_f(self, X):
+        y = self.net_y(X)
+        X.requires_grad_(True)
+        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
+        for i in range(y.shape[1]):  # Loop over all outputs
+            for j in range(X.shape[1]):  # Loop over all inputs
+                if X.grad is not None:
+                    X.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
+                grad_outputs = torch.zeros_like(y[:, i])
+                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
+                gradients = torch.autograd.grad(outputs=y[:, i], inputs=X, grad_outputs=grad_outputs,
+                                                create_graph=True, retain_graph=True, allow_unused=True)
+                if gradients[0] is not None:
+                    Jacobian[:, i, j] = gradients[0][:, j]
+                else:
+                    # Handle the case where the gradient is None (if allow_unused=True)
+                    Jacobian[:, i, j] = torch.zeros(X.shape[0])
+        
+        d2y_dx1_2 = torch.zeros(X.shape[0], y.shape[1])
+        for i in range(y.shape[1]):  # Loop over each output component of y
+            # Compute the first derivative of y[i] with respect to x1
+            dy_dx1 = torch.autograd.grad(y[:, i], X, grad_outputs=torch.ones(X.shape[0], device=X.device), create_graph=True)[0][:, 0]
+            
+            # Compute the second derivative of y[i] with respect to x1
+            # This is the gradient of the first derivative dy_dx1 with respect to x1 again
+            d2y_dx1_2_i = torch.autograd.grad(dy_dx1, X, grad_outputs=torch.ones_like(dy_dx1), create_graph=True)[0][:, 0]
+            
+            # Store the computed second derivative in the placeholder tensor
+            d2y_dx1_2[:, i] = d2y_dx1_2_i   
+
+        f = Jacobian[:,0,1:2] + y*Jacobian[:,0,0:1] - self.nu*d2y_dx1_2
+        return f.to(torch.float32)
+    
+    def boundary(self):
+        self.u_lb_pred = self.net_y(self.x_lb)
+        self.u_ub_pred = self.net_y(self.x_ub)
+        self.u_exact_pred = self.net_y(self.x_t)
+        self.f_u_pred = self.net_f(self.x_f)
+        self.u0_pred = self.net_y(self.x0)
+        
+        boundaries = [self.u0_pred - self.y0, self.u_lb_pred, self.u_ub_pred]
+        boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
+        return boundaries
     
 
 

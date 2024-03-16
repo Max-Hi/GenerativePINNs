@@ -87,4 +87,43 @@ def structure_data_poissonHD(data, noise, N0, N_b, N_f):
     pass
 
 def structure_data_burgers(data, noise, N0, N_b, N_f):
-    pass
+    # input 
+    t = data['t'].flatten()[:,None]
+    x = data['x'].flatten()[:,None]
+    lb = np.array([x.min(), t.min()]) # lower bound for [x, t]
+    ub = np.array([x.max(), t.max()]) # upper bound for [x, t]
+    Exact = data['usol'].T
+
+
+    X, T = np.meshgrid(x,t)
+    X_star = np.hstack((X.flatten()[:,None], T.flatten()[:,None]))
+    Y_star = Exact.flatten()[:,None]
+
+    #plot_with_ground_truth(mat, X_star, X , T, u_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+
+    # Initial and boundary data
+    tb = t[np.random.choice(t.shape[0], N_b, replace=False),:] # random time samples for boundary points
+    ti = np.zeros(N_b)
+
+    # exact observations
+    idx = np.random.choice(X_star.shape[0], N0, replace=False)
+    X_t = X_star[idx,:]
+    
+    Y_t = Y_star[idx, :]
+
+
+    # Collocation points
+    X_f = lb + (ub-lb)*lhs(2, N_f)
+
+    # initial points
+    x0 = np.linspace(-1, 1, N0, endpoint = True)
+    X0 = np.vstack((x0, np.zeros_like(x0, dtype=np.float32))).transpose() # (x, 0)
+    Y0 = -np.sin(np.pi*X0)[:,0:1]
+    # n = Y0.shape[0]
+    # Y0.reshape(n,1)
+    # boundary points
+    boundary = np.vstack((lb, ub))
+    X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
+    X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
+    
+    return X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star
