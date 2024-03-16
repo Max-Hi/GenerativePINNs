@@ -43,6 +43,17 @@ usol = usol.T.squeeze()
 # save the data to mat file
 sio.savemat('Data/burgers.mat', {'x': x, 't': t, 'usol': usol})
 
+# plot the solution for the Burgers equation
+import matplotlib.pyplot as plt
+X, T = np.meshgrid(t, x)
+fig = plt.contourf(X, T, usol, 100, cmap='jet')
+plt.colorbar(fig)
+plt.title('Burgers equation solution')
+plt.xlabel('x')
+plt.ylabel('t')
+plt.show()
+
+
 # # Test to load the data
 # N0 = 50 # number of data for initial samples
 # N_b = 50 # number of data for boundary samples
