@@ -11,7 +11,7 @@ x_1, x_2, ..., x_10 \in (0, 1)
 u(x) = x_1^2 - x_2^2 + x_3^2 - x_4^2 + x_5x_6 + x_7x_8x_9x_10
 """
 
-N_d = 8 # number of spatial points
+N_d = 4 # number of spatial points
 
 x = np.linspace(0, 1, N_d, endpoint = True)[:, None]
 usol = np.zeros((N_d, N_d, N_d, N_d, N_d, N_d, N_d, N_d, N_d, N_d))
