@@ -102,6 +102,7 @@ class weighted_MSELoss(nn.Module):
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
         """
+        
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
         X_f: the collocation points with time, size (Nf, dim(X)+1)
@@ -343,8 +344,8 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, X_star, y_star, start_epoch=0, n_critic = 2):
-        
+    def train(self, epochs, X, T, X_star, y_star, start_epoch=0, n_critic = 2):
+        """X, T: extra grid data for ground truth solution. passed for plotting. """
         if type(y_star)==list:
             print("Using first component of y_star for error")
             y_star = y_star[0]
@@ -386,8 +387,9 @@ class PINN_GAN(nn.Module):
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                X, T = np.meshgrid(self.x_f[:,0:1].detach().numpy(), self.x_f[:,1:2].detach().numpy()) #TODO dimensionality
-                plot_with_ground_truth(y_pred, X_star, X , T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
+                 #TODO dimensionality
+                
+                plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
 
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))

@@ -125,5 +125,5 @@ def structure_data_burgers(data, noise, N0, N_b, N_f):
     boundary = np.vstack((lb, ub))
     X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
     X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
-    
-    return X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star
+    # NOTE: added extra X, T for plotting
+    return X, T, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star

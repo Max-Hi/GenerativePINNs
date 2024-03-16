@@ -33,7 +33,7 @@ pde = questionary.select("Which pde do you want to choose?", choices=["burgers",
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
 
 # structure data
-X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
+X, T, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
@@ -55,6 +55,7 @@ match pde:
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
     case "burgers":
         nu = 1e-2/np.pi 
+        # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu)
@@ -69,7 +70,7 @@ match pde:
     case _:
         print("pde not recognised")
 start_time = time.time()         
-model.train(6500, X_star, Y_star)
+model.train(6500, X, T, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -100,7 +101,8 @@ else:
     y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
     
     mat = torch.load("burgers_pred.pt")
-    plot_with_ground_truth(mat, X_star, X , T, u_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+
+    plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
     # plot errors
     with open('loss_history_burgers.pkl', 'rb') as f:
         loaded_dict = pickle.load(f)
