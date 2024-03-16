@@ -123,6 +123,13 @@ class Heat_PINN_GAN(PINN_GAN):
             model_name = "heat"+model_name
         super(Heat_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)   
 
+        n_boundaries = [X0.shape[0]]
+        self.number_collocation_points = self.x_f.shape[0]
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = []
+        for number_boundary_points in n_boundaries:
+            self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+            
     def _net_f(self, X):
         y = self.net_y(X)
         
@@ -184,6 +191,13 @@ class Poisson_PINN_GAN(PINN_GAN):
             model_name = "poisson"+model_name
         super(Poisson_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
 
+        n_boundaries = [self.x_lb[0].shape[0]]*2+[self.x_lb[1].shape[0]]*2
+        self.number_collocation_points = self.x_f.shape[0]
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = []
+        for number_boundary_points in n_boundaries:
+            self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+            
     def _net_f(self, X):
         y = self.net_y(X)
         
@@ -235,7 +249,17 @@ class PoissonHD_PINN_GAN(PINN_GAN):
     
         if model_name!="":
             model_name = "poissonhd"+model_name
-        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
+        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas) 
+        
+        n_boundaries = []
+        for x in self.x_lb:
+            n_boundaries.append(x.shape[0])
+        self.number_collocation_points = self.x_f.shape[0]
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = []
+        for number_boundary_points in n_boundaries:
+            self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+             
     def _net_f(self, X):
         y = self.net_y(X)
         
@@ -285,6 +309,13 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
 
         self.k = k
+        
+        n_boundaries = [self.x_lb[0].shape[0]]*2+[self.x_lb[1].shape[0]]*2
+        self.number_collocation_points = self.x_f.shape[0]
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = []
+        for number_boundary_points in n_boundaries:
+            self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
         
     def _net_f(self, X):
         y = self.net_y(X)
@@ -339,6 +370,13 @@ class Burgers_PINN_GAN(PINN_GAN):
         super(Burgers_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas)  
 
         print("not yet implemented. It is in a seperate implementation currently")
+        
+        n_boundaries = [] # TODO
+        self.number_collocation_points = self.x_f.shape[0]
+        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
+        self.boundary_weights = []
+        for number_boundary_points in n_boundaries:
+            self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
     
 
 
