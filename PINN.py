@@ -52,6 +52,20 @@ class Generator(nn.Module):
                 print(f"The last entry of layers_D should be {self.info_for_error[1]} and is {self.layers[-1]}.")
             sys.exit(1)
 
+class Generator_LSTM(nn.Module):
+    def __init__(self, layers_G):
+        super(Generator_LSTM, self).__init__()
+        self.layers = layers_G
+        self.num_layers = 2
+        # input_size, hidden_size, num_layers, output_size
+        self.lstm = nn.LSTM(self.layers[0],self.layers[1], self.num_layers, batch_first= True)
+        self.linear = nn.Linear(self.layers[1], self.layers[-1])
+    def forward(self, x):
+        # print(x.unsqueeze(1).shape)
+        out, _ = self.lstm(x.unsqueeze(1))#, (h0, c0))  # Forward pass through LSTM layer
+        out = self.linear(out[:, -1, :]) 
+        return out
+
 class Discriminator(nn.Module):
     def __init__(self, layers_D, info_for_error=(None, None)):
         super(Discriminator, self).__init__()
@@ -85,7 +99,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G: list, layers_D: list, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
         """
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
@@ -103,12 +117,11 @@ class PINN_GAN(nn.Module):
 
         # Hyperparameters
         self.q = [
-            0.1,
-            0.1,
-            0.1,
-            0.1
+            5e-3,
+            5e-3     
         ]
         self.lambdas = lambdas
+        self.e = [5e-4, 1e-4]  # Hyperparameter for PW update
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -156,8 +169,10 @@ class PINN_GAN(nn.Module):
         self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[1])
         self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[0])
         
-        self.e = 1e-3  # Hyperparameter for PW update
-
+        # options
+        self.enable_GAN = enable_GAN
+        self.enable_PW = enable_PW
+        self.dynamic_lr = dynamic_lr
     
     def save(self, epoch, n_critic):
         checkpoint = {
@@ -217,7 +232,7 @@ class PINN_GAN(nn.Module):
         v = y[:,1:2]
         
         X.requires_grad_(True)
-        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1]) # Jacobian[:,i,j:j+1] will create a (:,1) shaped gradient of the ith y entry with regard to the jth x entry.
+        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
         for i in range(y.shape[1]):  # Loop over all outputs
             for j in range(X.shape[1]):  # Loop over all inputs
                 if X.grad is not None:
@@ -249,6 +264,7 @@ class PINN_GAN(nn.Module):
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
+        
         X = self.x0
         y = self.net_y(X)
         X_lb = self.x_lb
@@ -308,7 +324,7 @@ class PINN_GAN(nn.Module):
         beta.requires_grad_(False)
         return beta
     
-    def weight_update(self, f_pred, e):
+    def weight_update(self, f_pred):
         # f_pred 
         '''
         This function changes the weights used for loss calculation according to the papers formular. 
@@ -317,10 +333,10 @@ class PINN_GAN(nn.Module):
         boundaries = self.boundary()
         
         rho_values = []
-        
+        e = self.e[0]
         w = self.domain_weights
         rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
-        epsilon = 10e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+        epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
         # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
         # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
         alpha = self.q[0] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -332,18 +348,20 @@ class PINN_GAN(nn.Module):
         
         rho_values.append(rho)
         
-        # TODO continue here with work
+    
         for index, w in enumerate(self.boundary_weights):
+            print(index)
+            e = self.e[-1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
-            epsilon = 10e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+            epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
-            alpha = self.q[index] * torch.log((1-rho+epsilon)/(rho+epsilon))
+            alpha = self.q[-1] * torch.log((1-rho+epsilon)/(rho+epsilon))
             w_new = w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32)) / \
                 torch.sum(w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32))) # the sum sums along the values of w
             w_new.requires_grad_(False)
             w_new.to(torch.float32)
-            self.boundary_weights[index-1] = w_new
+            self.boundary_weights[index] = w_new
             
             rho_values.append(rho)
         
@@ -372,7 +390,7 @@ class PINN_GAN(nn.Module):
         
         input_D = torch.concat((self.x_f, self.y_f_pred), 1)
         D_input = self.discriminator.forward(input_D)
-        L_D = loss_l1(torch.ones_like(D_input), 
+        L_D = loss_l1(torch.zeros_like(D_input), 
                     D_input)
         
         L_T = self.loss_T()
@@ -415,38 +433,43 @@ class PINN_GAN(nn.Module):
 
     def train(self, epochs = 1e+4, start_epoch=0, n_critic = 2):
         # Training
+
         for epoch in tqdm(range(start_epoch, epochs)):
             # TODO done?
             self.y0_pred = self.net_y(self.x0)
             self.f_pred = self.net_f(self.x_f)
-
-            self.optimizer_D.zero_grad()
-            loss_Discr = self.loss_D()
-            loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
+            if self.enable_GAN == True:
+                self.optimizer_D.zero_grad()
+                loss_Discr = self.loss_D()
+                loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
                 self.optimizer_G.zero_grad()
-                self.optimizer_PW.zero_grad()
+                
                 loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
-                loss_PW = self.loss_PW()
-                loss_PW.backward(retain_graph=True)
-                self.optimizer_PW.step()
+                if self.enable_PW == True:
+                    self.optimizer_PW.zero_grad()
+                    loss_PW = self.loss_PW()
+                    loss_PW.backward(retain_graph=True)
+
                 self.optimizer_G.step()
                 # weight updates
-                rho = self.weight_update(self.f_pred, self.e)
-                self.rho_values.append(rho)
-                self.loss_values["Generator"].append(loss_G.detach().numpy())
-                self.loss_values["Pointwise"].append(loss_PW.detach().numpy())
-                
-            self.optimizer_D.step()
-            self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
+                if self.enable_PW == True:
+                    self.optimizer_PW.step()
+                    rho = self.weight_update(self.f_pred)
+                    self.rho_values.append(rho)
+                    self.loss_values["Pointwise"].append(loss_PW.detach().numpy())
+                self.loss_values["Generator"].append(loss_G.detach().numpy())   
+            if self.enable_GAN == True:    
+                self.optimizer_D.step()
+                self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
   
-            if epoch % 100 == 0:
+            if epoch % 10 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
                 if self.create_saves:
                     self.save(epoch, n_critic)
-            
-            if torch.sum(rho)<10e-5 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
+
+            if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
                 if self.create_saves:
                     self.save(epoch, n_critic)
                 break
