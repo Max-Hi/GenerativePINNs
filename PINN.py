@@ -150,8 +150,13 @@ class PINN_GAN(nn.Module):
         self.y_t = torch.tensor(Y_t)
         
         # Bounds
+        boundary = torch.tensor(boundary)
+        boundary = boundary.transpose(0,1)
         self.lb = torch.tensor(boundary[:, 0:1])
         self.ub = torch.tensor(boundary[:, 1:2])
+        print(self.lb)
+        print(self.ub)
+        print(self.lb.shape)
         
         # Sizes
         self.layers_D = layers_D
@@ -344,8 +349,9 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, X, T, X_star, y_star, start_epoch=0, n_critic = 2):
+    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 2):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
+        X, T = grid
         if type(y_star)==list:
             print("Using first component of y_star for error")
             y_star = y_star[0]

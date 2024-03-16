@@ -32,6 +32,7 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f):
     Exact = data['uu']
     Exact_h = np.sqrt(np.real(Exact)**2 + np.imag(Exact)**2)
     X, T = np.meshgrid(x,t)
+    grid = [X,T]
     X_star = np.hstack((X.flatten()[:,None], T.flatten()[:,None]))
     h_star = Exact_h.T.flatten()[:,None]
     v_star = np.imag(Exact).T.flatten()[:,None]
@@ -72,7 +73,7 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f):
     # Use the mesh to index into u
     Y_t = np.hstack((np.real(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None],np.imag(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None]))
     
-    return X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, [u_star, v_star, h_star]
+    return grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, [u_star, v_star, h_star]
 
 def structure_data_heat(data, noise, N0, N_b, N_f):
     pass
@@ -96,6 +97,7 @@ def structure_data_burgers(data, noise, N0, N_b, N_f):
 
 
     X, T = np.meshgrid(x,t)
+    grid = [X, T]
     X_star = np.hstack((X.flatten()[:,None], T.flatten()[:,None]))
     Y_star = Exact.flatten()[:,None]
 
@@ -126,4 +128,4 @@ def structure_data_burgers(data, noise, N0, N_b, N_f):
     X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
     X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
     # NOTE: added extra X, T for plotting
-    return X, T, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star

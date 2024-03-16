@@ -23,8 +23,8 @@ N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 1]
-layers_D = [3, 100, 100, 1]
+layers_G = [2, 100, 100, 100, 100, 2]
+layers_D = [4, 100, 100, 1]
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
@@ -33,7 +33,7 @@ pde = questionary.select("Which pde do you want to choose?", choices=["burgers",
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
 
 # structure data
-X, T, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
+grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
@@ -70,7 +70,7 @@ match pde:
     case _:
         print("pde not recognised")
 start_time = time.time()         
-model.train(6500, X, T, X_star, Y_star)
+model.train(6500, grid, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -101,6 +101,8 @@ else:
     y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
     
     mat = torch.load("burgers_pred.pt")
+    
+    X, T = grid # TODO if grid has more than two entries ???
 
     plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
     # plot errors
