@@ -23,8 +23,8 @@ N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 2]
-layers_D = [4, 100, 100, 1]
+layers_G = [2, 100, 100, 100, 100, 1]
+layers_D = [3, 100, 100, 1]
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
