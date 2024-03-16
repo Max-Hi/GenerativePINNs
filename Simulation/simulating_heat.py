@@ -44,6 +44,9 @@ for n in range(1, N_t):
         # Solve the sx2stem of linear equations
         usol[1:-1, j, n] = spsolve(A, b)
 
+# Save the data to a mat file
+sio.savemat('Data/heat.mat', {'x1': x1, 'x2': x2, 't': t, 'usol': usol})
+
 # plot the solution for the heat equation for each 10 time point
 import matplotlib.pyplot as plt
 x1, x2 = np.meshgrid(x1, x2)
@@ -55,6 +58,3 @@ for i in range(0, N_t, 10):
     plt.xlabel('x1')
     plt.ylabel('x2')
     plt.show()
-
-# Save the data to a mat file
-sio.savemat('Data/heat.mat', {'x1': x1, 'x2': x2, 't': t, 'usol': usol})

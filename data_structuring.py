@@ -87,12 +87,8 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
 
     # Initial data
     X0 = lb[:2] + (ub[:2]-lb[:2])*lhs(2, N0) # random samples for initial points
-    idx1 = np.random.choice(x1.shape[0], N0, replace=False)
-    idx2 = np.random.choice(x2.shape[0], N0, replace=False)
-    x1_0 = x1[idx1,:]
-    x2_0 = x2[idx2,:]
-    X0 = np.vstack((x1_0, x2_0)).transpose() # (x, y)
-    Y0 = Exact[idx1, idx2, 0:1]
+    X0 = np.insert(X0, 2, 0, axis=1) # (x, 0)
+    Y0 = (X0[:,0] - X0[:,1])[:,None] # u(x, 0) = x1 - x2
     
     # no boundary data so turn to the collocation points
     X_f = lb + (ub-lb)*lhs(3, N_f)
@@ -102,7 +98,7 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
     X_exact = X_star[idx, :]
     Y_exact = Y_star[idx, :]
     
-    return grid, X0, Y0, X_f, X_exact, Y_exact, X_star, Y_star, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_exact, Y_exact, boundary, X_star, Y_star
     
 
 def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
@@ -136,7 +132,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     X_exact = X_star[idx, :]
     Y_exact = Y_star[idx, :]
     
-    return grid, X_b, Y_b, X_f, X_exact, Y_exact, X_star, Y_star, boundary, X_star, Y_star
+    return grid, X_b, Y_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
 
 def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     # bounds of data
@@ -159,8 +155,7 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     idx3 = np.random.choice(np.where(X_star[:,1] == lb[1])[0], N_b//4, replace=False)
     idx4 = np.random.choice(np.where(X_star[:,1] == ub[1])[0], N_b//4, replace=False)
     idx = np.concatenate((idx1, idx2, idx3, idx4))
-    X_b = X_star[idx,:]
-    Y_b = Y_star[idx,:] # exact observations at the boundary points
+    X_b = X_star[idx,:] # all 0 at the boundary points so no Y_b recorded
     
     # collocation points
     X_f = lb + (ub-lb)*lhs(2, N_f)
@@ -170,7 +165,7 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     X_exact = X_star[idx,:]
     Y_exact = Y_star[idx,:]
 
-    return grid, X_b, Y_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
+    return grid, X_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
 
 def structure_data_poissonHD(noise, N_b, N_f, N_exact):
     # bounds of data
