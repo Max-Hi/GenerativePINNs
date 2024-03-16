@@ -99,7 +99,7 @@ def structure_data_burgers(data, noise, N0, N_b, N_f):
     X_star = np.hstack((X.flatten()[:,None], T.flatten()[:,None]))
     Y_star = Exact.flatten()[:,None]
 
-    #plot_with_ground_truth(mat, X_star, X , T, u_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+    #plot_with_ground_truth(mat, X_star, X, T, u_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
 
     # Initial and boundary data
     tb = t[np.random.choice(t.shape[0], N_b, replace=False),:] # random time samples for boundary points
