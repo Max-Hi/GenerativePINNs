@@ -98,7 +98,10 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
     X_exact = X_star[idx, :]
     Y_exact = Y_star[idx, :]
     
-    return grid, X0, Y0, X_f, X_exact, Y_exact, boundary, X_star, Y_star
+    # default values just for compatibility
+    X_lb, X_ub = None, None
+    
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
     
 
 def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
@@ -120,9 +123,8 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     idx2 = np.random.choice(np.where(X_star[:,0] == ub[0])[0], N_b//4, replace=False)
     idx3 = np.random.choice(np.where(X_star[:,1] == lb[1])[0], N_b//4, replace=False)
     idx4 = np.random.choice(np.where(X_star[:,1] == ub[1])[0], N_b//4, replace=False)
-    idx = np.concatenate((idx1, idx2, idx3, idx4))
-    X_b = X_star[idx,:]
-    Y_b = Y_star[idx,:] # exact observations at the boundary points
+    X_lb = [X_star[idx1,:],X_star[idx3,:]]
+    X_ub = [X_star[idx2,:],X_star[idx4,:]]
     
     # collocation points
     X_f = lb + (ub-lb)*lhs(2, N_f)
@@ -132,7 +134,10 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     X_exact = X_star[idx, :]
     Y_exact = Y_star[idx, :]
     
-    return grid, X_b, Y_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
+    # just for correct formating:
+    X0, Y0 = None, None
+    
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
 
 def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     # bounds of data
@@ -154,8 +159,8 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     idx2 = np.random.choice(np.where(X_star[:,0] == ub[0])[0], N_b//4, replace=False)
     idx3 = np.random.choice(np.where(X_star[:,1] == lb[1])[0], N_b//4, replace=False)
     idx4 = np.random.choice(np.where(X_star[:,1] == ub[1])[0], N_b//4, replace=False)
-    idx = np.concatenate((idx1, idx2, idx3, idx4))
-    X_b = X_star[idx,:] # all 0 at the boundary points so no Y_b recorded
+    X_lb = [X_star[idx1,:],X_star[idx3,:]] # all 0 at the boundary points so no Y_b recorded
+    X_ub = [X_star[idx2,:],X_star[idx4,:]]
     
     # collocation points
     X_f = lb + (ub-lb)*lhs(2, N_f)
@@ -164,8 +169,11 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     idx = np.random.choice(X_star.shape[0], N_exact, replace=False)
     X_exact = X_star[idx,:]
     Y_exact = Y_star[idx,:]
+    
+    # just for correct formating:
+    X0, Y0 = None, None
 
-    return grid, X_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
 
 def structure_data_poissonHD(noise, N_b, N_f, N_exact):
     # bounds of data

@@ -23,8 +23,8 @@ N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 1]
-layers_D = [3, 100, 100, 1]
+layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+layers_D = [3, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
@@ -60,13 +60,20 @@ match pde:
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu)
     case "heat":
-        pass
+        model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+                 layers_G= layers_G, layers_D = layers_D, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name,)
     case "poisson":
-        pass
+        model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+                 layers_G= layers_G, layers_D = layers_D, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
     case "poissonHD":
         pass
     case "helmholtz":
-        pass
+        k = 1
+        model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+                 layers_G= layers_G, layers_D = layers_D, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, k=k)
     case _:
         print("pde not recognised")
 start_time = time.time()         

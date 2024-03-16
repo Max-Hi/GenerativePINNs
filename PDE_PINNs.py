@@ -231,11 +231,11 @@ class Poisson_PINN_GAN(PINN_GAN):
 
     def boundary(self):
         X1_lb = self.x_lb[0]
-        X1_ub = self.x_lb[0]
+        X1_ub = self.x_ub[0]
         y1_lb = self.net_y(X1_lb)
         y1_ub = self.net_y(X1_ub)
         X2_lb = self.x_lb[1]
-        X2_ub = self.x_lb[1]
+        X2_ub = self.x_ub[1]
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
         
