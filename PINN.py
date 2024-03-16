@@ -336,7 +336,7 @@ class PINN_GAN(nn.Module):
         e = self.e[0]
         w = self.domain_weights
         rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
-        epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+        epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
         # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
         # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
         alpha = self.q[0] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -350,10 +350,9 @@ class PINN_GAN(nn.Module):
         
     
         for index, w in enumerate(self.boundary_weights):
-            print(index)
             e = self.e[-1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
-            epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+            epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[-1] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -431,7 +430,7 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs = 1e+4, start_epoch=0, n_critic = 2):
+    def train(self, epochs, X_star, u_star, v_star, h_star, start_epoch=0, n_critic = 2):
         # Training
 
         for epoch in tqdm(range(start_epoch, epochs)):
@@ -464,8 +463,28 @@ class PINN_GAN(nn.Module):
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
   
-            if epoch % 10 == 0:
+            if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
+                y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
+                u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
+                h_pred = np.sqrt(u_pred**2 + v_pred**2)
+
+                plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+                plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+                plt.legend()
+                plt.savefig("Plots/"+self.name)
+
+                # Errors
+                errors = {
+                        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+                        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+                        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+                        }
+                print('Errors: ')
+                for key in errors:
+                    print(key+": ", errors[key])
+                    
+                print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
 
