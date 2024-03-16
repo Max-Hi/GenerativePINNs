@@ -4,30 +4,41 @@ from pyDOE import lhs
 
 # Create the training data for the Helmholtz equation
 
-""" 
-equation configuration: 
-x \in [0, 1]
-y \in [0, 1]
-u(x, 0) = u(x, 1) = u(0, y) = u(1, y) = sin(kx)
+"""
+Configuration:
+x, y \in (0, 1)
+u(0, y) = sin(k*y)
+u(1, y) = sin(k*y)
+u(x, 0) = sin(k*x)
+u(x, 1) = sin(k*x) 
+
+Delta u + k^2 u = 0
+
+Solve that we can get the exact solution:
+u(x, y) = sin(k*x)
 """
 
-N_x = 256 # number of spatial points
-N_y = 256 # number of spatial points
-k = np.pi
+N_x = 2000 # number of spatial points
+N_y = 2000 # number of spatial points
+
 x = np.linspace(0, 1, N_x, endpoint = True)[:, None]
-# convert to column vector
-# y = np.linspace(0, 1, N_y, endpoint= True)[:, None]
+y = np.linspace(0, 1, N_y, endpoint = True)[:, None]
 usol = np.zeros((N_x, N_y))
 
-# Create the initial condition
-usol[:,0] = -np.sin(np.pi*x).flatten()
+k = 2*np.pi # wavenumber
 
 # Exact solution
-usol = -np.sin(np.pi*x).repeat(N_y, 1)
+usol = np.sin(k*x) + np.zeros_like(y.T)
 
-print(usol.shape)
-# reshape the data to 2D
-usol = usol.T.squeeze()
+# Training data
+sio.savemat('Data/helmholtz.mat', {'x': x, 'y': y, 'usol': usol})
 
-# save the data to mat file
-# sio.savemat('Data/burgers.mat', {'x': x, 't': t, 'usol': usol})
+# plot the solution for the Helmholtz equation
+import matplotlib.pyplot as plt
+X, Y = np.meshgrid(y, x)
+fig = plt.contourf(X, Y, usol, 100, cmap='jet')
+plt.colorbar(fig)
+plt.title('Helmholtz equation solution')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.show()

@@ -6,7 +6,7 @@ import time
 import os
 import matplotlib.pyplot as plt
 
-from PINN import PINN_GAN, Discriminator, Generator
+from PDE_PINNs import Schroedinger_PINN_GAN, Heat_PINN_GAN, Helmholtz_PINN_GAN, Poisson_PINN_GAN, PoissonHD_PINN_GAN, Burgers_PINN_GAN
 
 # random seed for reproduceability
 np.random.seed(42)
@@ -85,11 +85,11 @@ if model_name != "":
 
 # Train the model
 
-model = PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
 start_time = time.time()         
-model.train(6500)
+model.train(6500, X_star, u_star, v_star, h_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -97,6 +97,7 @@ print('Training time: %.4f' % (time.time() - start_time))
 y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
 u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
 h_pred = np.sqrt(u_pred**2 + v_pred**2)
+
 
 plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
 plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")

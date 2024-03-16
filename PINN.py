@@ -110,10 +110,11 @@ class PINN_GAN(nn.Module):
         X_ub: the upper boundary, size (N_b, 2)
         boundary: the lower and upper boundary, size (2, 2) : [(x_min, t_min), (x_max, t_max)]
         layers: the number of neurons in each layer (_D for discriminator, _G for generator)
+        enable_GAN, enable_PW: 
         model_name: the name the model is saved under. If the name is an empty string, it is not saved. This is the default.
         lr: the learning rate as a tupel
         """
-        super(PINN_GAN, self).__init__()
+        super().__init__()
 
         # Hyperparameters
         self.q = [
@@ -149,13 +150,6 @@ class PINN_GAN(nn.Module):
         # Bounds
         self.lb = torch.tensor(boundary[:, 0:1])
         self.ub = torch.tensor(boundary[:, 1:2])
-
-        # weights for the point weigthing algorithm
-        self.n_boundary_conditions = 3 # NOTE: EDIT manually (why?)
-        self.number_collocation_points = self.x_f.shape[0]
-        self.number_boundary_points = self.x0.shape[0]
-        self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
-        self.boundary_weights = [torch.full((self.number_boundary_points,), 1/self.number_boundary_points, requires_grad=False)]*self.n_boundary_conditions
         
         # Sizes
         self.layers_D = layers_D
@@ -225,88 +219,6 @@ class PINN_GAN(nn.Module):
             print(f"Caught IndexError: {e}")
             print("This was caught in net_f, so it is likely that your implementation for calculating f is wrong, probably due to a missunderstanding concerning dimensionality.")
             sys.exit(1)
-    
-    def _net_f(self, X):
-        y = self.net_y(X)
-        u = y[:,0:1]
-        v = y[:,1:2]
-        
-        X.requires_grad_(True)
-        Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
-        for i in range(y.shape[1]):  # Loop over all outputs
-            for j in range(X.shape[1]):  # Loop over all inputs
-                if X.grad is not None:
-                    X.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
-                grad_outputs = torch.zeros_like(y[:, i])
-                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y[:, i], inputs=X, grad_outputs=grad_outputs,
-                                                create_graph=True, retain_graph=True, allow_unused=True)
-                if gradients[0] is not None:
-                    Jacobian[:, i, j] = gradients[0][:, j]
-                else:
-                    # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian[:, i, j] = torch.zeros(X.shape[0])
-        
-        d2y_dx1_2 = torch.zeros(X.shape[0], y.shape[1])
-        for i in range(y.shape[1]):  # Loop over each output component of y
-            # Compute the first derivative of y[i] with respect to x1
-            dy_dx1 = torch.autograd.grad(y[:, i], X, grad_outputs=torch.ones(X.shape[0], device=X.device), create_graph=True)[0][:, 0]
-            
-            # Compute the second derivative of y[i] with respect to x1
-            # This is the gradient of the first derivative dy_dx1 with respect to x1 again
-            d2y_dx1_2_i = torch.autograd.grad(dy_dx1, X, grad_outputs=torch.ones_like(dy_dx1), create_graph=True)[0][:, 0]
-            
-            # Store the computed second derivative in the placeholder tensor
-            d2y_dx1_2[:, i] = d2y_dx1_2_i      
-
-        f_u = Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
-        f_v = Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
-        return torch.concat((f_u, f_v),1).to(torch.float32)
-
-    def boundary(self):
-        
-        X = self.x0
-        y = self.net_y(X)
-        X_lb = self.x_lb
-        X_ub = self.x_lb
-        y_lb = self.net_y(X_lb)
-        y_ub = self.net_y(X_ub)
-        
-        X_lb.requires_grad_(True)
-        Jacobian_lb = torch.zeros(X_lb.shape[0], y_lb.shape[1], X_lb.shape[1])
-        for i in range(y_lb.shape[1]):  # Loop over all outputs
-            for j in range(X_lb.shape[1]):  # Loop over all inputs
-                if X_lb.grad is not None:
-                    X_lb.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
-                grad_outputs = torch.zeros_like(y[:, i])
-                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y_lb[:, i], inputs=X_lb, grad_outputs=grad_outputs,
-                                                create_graph=True, retain_graph=True, allow_unused=True)
-                if gradients[0] is not None:
-                    Jacobian_lb[:, i, j] = gradients[0][:, j]
-                else:
-                    # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian_lb[:, i, j] = torch.zeros(X_lb.shape[0])
-        
-        X_ub.requires_grad_(True)
-        Jacobian_ub = torch.zeros(X_ub.shape[0], y_ub.shape[1], X_ub.shape[1])
-        for i in range(y_ub.shape[1]):  # Loop over all outputs
-            for j in range(X_ub.shape[1]):  # Loop over all inputs
-                if X_ub.grad is not None:
-                    X_ub.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
-                grad_outputs = torch.zeros_like(y[:, i])
-                grad_outputs[:] = 1  # Setting up a vector for element-wise gradient computation
-                gradients = torch.autograd.grad(outputs=y_ub[:, i], inputs=X_ub, grad_outputs=grad_outputs,
-                                                create_graph=True, retain_graph=True, allow_unused=True)
-                if gradients[0] is not None:
-                    Jacobian_ub[:, i, j] = gradients[0][:, j]
-                else:
-                    # Handle the case where the gradient is None (if allow_unused=True)
-                    Jacobian_ub[:, i, j] = torch.zeros(X_ub.shape[0])
-        
-        boundaries = [y-2/torch.cosh(X), y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]]
-        boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
-        return boundaries
 
     def forward(self, x):
         y = self.net_y(x)
@@ -336,7 +248,7 @@ class PINN_GAN(nn.Module):
         e = self.e[0]
         w = self.domain_weights
         rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
-        epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+        epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
         # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
         # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
         alpha = self.q[0] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -350,10 +262,9 @@ class PINN_GAN(nn.Module):
         
     
         for index, w in enumerate(self.boundary_weights):
-            print(index)
             e = self.e[-1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
-            epsilon = 1e-8 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+            epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[-1] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -431,7 +342,7 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs = 1e+4, start_epoch=0, n_critic = 2):
+    def train(self, epochs, X_star, u_star, v_star, h_star, start_epoch=0, n_critic = 2):
         # Training
 
         for epoch in tqdm(range(start_epoch, epochs)):
@@ -464,8 +375,28 @@ class PINN_GAN(nn.Module):
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
   
-            if epoch % 10 == 0:
+            if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
+                y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
+                u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
+                h_pred = np.sqrt(u_pred**2 + v_pred**2)
+
+                plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+                plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+                plt.legend()
+                plt.savefig("Plots/"+self.name)
+
+                # Errors
+                errors = {
+                        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+                        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+                        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+                        }
+                print('Errors: ')
+                for key in errors:
+                    print(key+": ", errors[key])
+                    
+                print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
 
@@ -480,3 +411,8 @@ class PINN_GAN(nn.Module):
         f_star = self.net_f(X_star) '''
         y_star, f_star = self.forward(X_star)
         return y_star.detach().numpy(), f_star.detach().numpy()
+
+
+
+    
+    
