@@ -72,7 +72,7 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f):
     # Use the mesh to index into u
     Y_t = np.hstack((np.real(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None],np.imag(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None]))
     
-    return X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, u_star, v_star, h_star
+    return X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, [u_star, v_star, h_star]
 
 def structure_data_heat(data, noise, N0, N_b, N_f):
     pass

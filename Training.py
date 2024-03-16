@@ -31,7 +31,7 @@ pde = questionary.select("Which pde do you want to choose?", choices=["burgers",
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
 
 # structure data
-X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, u_star, v_star, h_star = structure_data(pde, data, noise, N0, N_b, N_f)
+X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
@@ -50,30 +50,41 @@ model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name)
 start_time = time.time()         
-model.train(6500, X_star, u_star, v_star, h_star)
+model.train(6500, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
-# Predictions
-y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
-h_pred = np.sqrt(u_pred**2 + v_pred**2)
+if pde=="schroedinger":
+    u_star, v_star, h_star = Y_star[0], Y_star[1], Y_star[2]
+    
+    # Predictions
+    y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+    u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
+    h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
+    plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+    plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+    plt.legend()
+    plt.savefig("Plots/"+model_name)
+    
+    # Errors
+    errors = {
+            'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+            'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+            'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+            }
+    print('Errors: ')
+    for key in errors:
+        print(key+": ", errors[key])
 
-plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
-plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
-plt.legend()
-plt.savefig("Plots/"+model_name)
-
-# Errors
-errors = {
-        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
-        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
-        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
-          }
-print('Errors: ')
-for key in errors:
-    print(key+": ", errors[key])
+else:
+    y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+    
+    plt.plot(np.linspace(0,len(Y_star),len(Y_star)),Y_star, label="true")
+    plt.plot(np.linspace(0,len(y_pred),len(y_pred)),y_pred, label="predicted")
+    plt.legend()
+    plt.savefig("Plots/"+model_name)
+    print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
     
 print("value of f: ",np.sum(f_pred**2))
 

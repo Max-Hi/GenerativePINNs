@@ -342,7 +342,12 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, X_star, u_star, v_star, h_star, start_epoch=0, n_critic = 2):
+    def train(self, epochs, X_star, y_star, start_epoch=0, n_critic = 2):
+        
+        if type(y_star)==list:
+            print("Using first component of y_star for error")
+            y_star = y_star[0]
+        
         # Training
 
         for epoch in tqdm(range(start_epoch, epochs)):
@@ -378,23 +383,15 @@ class PINN_GAN(nn.Module):
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
-                u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
-                h_pred = np.sqrt(u_pred**2 + v_pred**2)
-
-                plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
-                plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+                y_pred = y_pred[:,0:1] # in case of multidim y
+                
+                plt.plot(np.linspace(0,len(y_star),len(y_star)),y_star, label="true")
+                plt.plot(np.linspace(0,len(y_pred),len(y_pred)),y_pred, label="predicted")
                 plt.legend()
                 plt.savefig("Plots/"+self.name)
 
-                # Errors
-                errors = {
-                        'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
-                        'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
-                        'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
-                        }
-                print('Errors: ')
-                for key in errors:
-                    print(key+": ", errors[key])
+                # Error
+                print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
