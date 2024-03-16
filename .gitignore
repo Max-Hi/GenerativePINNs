@@ -1,5 +1,6 @@
 # Python files
 __pycache__/*
+utils/__pycache__/*
 .DS_Store
 
 # individual files
@@ -7,3 +8,6 @@ __pycache__/*
 
 # data
 *.png
+
+# test files
+test*
