@@ -7,54 +7,54 @@ from scipy.sparse.linalg import spsolve
 
 """
 equation configuration:
-x, y \in [0, 1]
+x1, x2 \in [0, 1]
 t \in [0, 10]
-u(x, y, 0) = x - y
+u(x1, x2, 0) = x1 - x2
 """
 
-N_x = 256 # number of spatial points
-N_y = 256 # number of spatial points
+N_x1 = 256 # number of spatial points
+N_x2 = 256 # number of spatial points
 N_t = 100 # number of time points
 
 
-x = np.linspace(0, 1, N_x, endpoint = True)[:, None]
-y = np.linspace(0, 1, N_y, endpoint = True)[:, None]
-t = np.linspace(0, 100, N_t, endpoint = False)[:, None]
-usol = np.zeros((N_x, N_y, N_t))
+x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
+x2 = np.linspace(0, 1, N_x2, endpoint = True)[None, :]
+t = np.linspace(0, 100, N_t, endpoint = False)[None, :]
+usol = np.zeros((N_x1, N_x2, N_t))
 
 # initial condition
-usol[:, :, 0] = x - y.T
+usol[:, :, 0] = x1 - x2.T
 
-nu = (t[1] - t[0])/(x[1] - x[0])*(y[1] - y[0]) # diffusion coefficient
+nu = (t[0,1] - t[0,0])/(x1[0,1] - x1[0,0])*(x2[0,1] - x2[0,0]) # diffusion coefficient
 
-# Create the matrix A for the Crank-Nicolson method
+# Create the matrix1 A for the Crank-Nicolson method
 diagonals = [-nu, 1 + 2*nu, -nu]
-A = diags(diagonals, [-1, 0, 1], shape=(N_x-2, N_x-2))
+A = diags(diagonals, [-1, 0, 1], shape=(N_x1-2, N_x1-2))
 
 # Create the solution at each time point
 for n in range(1, N_t):
     # Create the right-hand side for the Crank-Nicolson method
-    b = np.zeros(N_x-2)
-    for j in range(1, N_y-1):
+    b = np.zeros(N_x1-2)
+    for j in range(1, N_x2-1):
         b[:] = usol[1:-1, j, n-1] + nu/2 * (usol[:-2, j, n-1] - 2*usol[1:-1, j, n-1] + usol[2:, j, n-1]) + \
                 nu/2 * (usol[1:-1, j-1, n-1] - 2*usol[1:-1, j, n-1] + usol[1:-1, j+1, n-1])
-        # Add the boundary conditions to the right-hand side
+        # Add the boundarx2 conditions to the right-hand side
         b[0] += nu/2 * usol[0, j, n]
         b[-1] += nu/2 * usol[-1, j, n]
-        # Solve the system of linear equations
+        # Solve the sx2stem of linear equations
         usol[1:-1, j, n] = spsolve(A, b)
 
 # plot the solution for the heat equation for each 10 time point
 import matplotlib.pyplot as plt
-X, Y = np.meshgrid(x, y)
+x1, x2 = np.meshgrid(x1, x2)
 
 for i in range(0, N_t, 10):
-    plt.contourf(X, Y, usol[:, :, i], 100, cmap='jet')
+    plt.contourf(x1, x2, usol[:, :, i], 100, cmap='jet')
     plt.colorbar()
-    plt.title('t = {}'.format(t[i, 0]))
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.title('t = {}'.format(t[0, i]))
+    plt.xlabel('x1')
+    plt.ylabel('x2')
     plt.show()
 
 # Save the data to a mat file
-sio.savemat('Data/heat.mat', {'x': x, 'y': y, 't': t, 'usol': usol})
+sio.savemat('Data/heat.mat', {'x1': x1, 'x2': x2, 't': t, 'usol': usol})

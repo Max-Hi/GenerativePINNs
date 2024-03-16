@@ -24,7 +24,7 @@ layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 1]
 layers_D = [3, 20, 20, 20, 20, 20, 20, 2]
 
 # Load data from simulated dataset
-data = scipy.io.loadmat('Data/burgers_shock.mat')
+data = scipy.io.loadmat('Data/burgers.mat')
 """ 
 equation configuration: 
 x \in [-1, 1]

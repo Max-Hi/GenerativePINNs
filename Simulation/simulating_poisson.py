@@ -6,39 +6,38 @@ from pyDOE import lhs
 
 """ 
 equation configuration: 
-x \in [0, 1]
-y \in [0, 1]
-u(x, -1) = u(x, 1) = u(-1, y) = u(1, y) = 0
+x1 \in [0, 1]
+x2 \in [0, 1]
+u(x1, -1) = u(x1, 1) = u(-1, x2) = u(1, x2) = 0
 
-Delta u = -sin(pi*x)*sin(pi*y)
+Delta u = -sin(pi*x1)*sin(pi*x2)
 
-Solve that we can get the exact solution:
-u(x, y) = 1/(2*pi^2) * sin(pi*x) * sin(pi*y)
+Solve that we can get the ex1act solution:
+u(x1, x2) = 1/(2*pi^2) * sin(pi*x1) * sin(pi*x2)
 """
 
-N_x = 2000 # number of spatial points
-N_y = 2000 # number of spatial points
-x = np.linspace(0, 1, N_x, endpoint = True)[:, None]
-# convert to row vector
-y = np.linspace(0, 1, N_y, endpoint= True)[:, None]
-usol = np.zeros((N_x, N_y))
+N_x1 = 2000 # number of spatial points
+N_x2 = 2000 # number of spatial points
+x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
+x2 = np.linspace(0, 1, N_x2, endpoint= True)[None, :]
+usol = np.zeros((N_x1, N_x2))
 
 # Create the initial condition
 usol[:, 0] = 0
 usol[0, :] = 0
 
-# Exact solution
-usol = 1/(2*np.pi**2) * np.dot(np.sin(np.pi*x), np.sin(np.pi*y.T))
+# Ex1act solution
+usol = 1/(2*np.pi**2) * np.dot(np.sin(np.pi*x1.T), np.sin(np.pi*x2))
 
 # save the data to mat file
-sio.savemat('Data/poisson.mat', {'x': x, 'y': y, 'usol': usol})
+sio.savemat('Data/poisson.mat', {'x1': x1, 'x2': x2, 'usol': usol})
 
 # plot the solution for the Poisson equation
 import matplotlib.pyplot as plt
-X, Y = np.meshgrid(x, y)
-fig = plt.contourf(X, Y, usol, 100, cmap='jet')
+x1, x2 = np.meshgrid(x1, x2)
+fig = plt.contourf(x1, x2, usol, 100, cmap='jet')
 plt.colorbar(fig)
 plt.title('Poisson equation solution')
-plt.xlabel('x')
-plt.ylabel('y')
+plt.xlabel('x1')
+plt.ylabel('x2')
 plt.show()
