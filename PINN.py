@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.optim import adam
 
+from utils.plot import plot_with_ground_truth
 
 # set random seeds for reproducability
 np.random.seed(42)
@@ -385,10 +386,8 @@ class PINN_GAN(nn.Module):
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                plt.plot(np.linspace(0,len(y_star),len(y_star)),y_star, label="true")
-                plt.plot(np.linspace(0,len(y_pred),len(y_pred)),y_pred, label="predicted")
-                plt.legend()
-                plt.savefig("Plots/"+self.name)
+                X, T = np.meshgrid(self.x_f[:,0:1].detach().numpy(), self.x_f[:,1:2].detach().numpy()) #TODO dimensionality
+                plot_with_ground_truth(y_pred, X_star, X , T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
 
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))

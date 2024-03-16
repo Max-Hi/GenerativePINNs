@@ -1,15 +1,17 @@
 import torch
 import numpy as np
 import scipy.io
-from pyDOE import lhs
 import time
 import os
 import matplotlib.pyplot as plt
+import pickle
 
 import questionary
 
 from PDE_PINNs import Schroedinger_PINN_GAN, Heat_PINN_GAN, Helmholtz_PINN_GAN, Poisson_PINN_GAN, PoissonHD_PINN_GAN, Burgers_PINN_GAN
 from data_structuring import structure_data
+from utils.plot import plot_with_ground_truth, plot_loss
+
 
 # random seed for reproduceability
 np.random.seed(42)
@@ -97,10 +99,13 @@ if pde=="schroedinger":
 else:
     y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
     
-    plt.plot(np.linspace(0,len(Y_star),len(Y_star)),Y_star, label="true")
-    plt.plot(np.linspace(0,len(y_pred),len(y_pred)),y_pred, label="predicted")
-    plt.legend()
-    plt.savefig("Plots/"+model_name)
+    mat = torch.load("burgers_pred.pt")
+    plot_with_ground_truth(mat, X_star, X , T, u_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+    # plot errors
+    with open('loss_history_burgers.pkl', 'rb') as f:
+        loaded_dict = pickle.load(f)
+    plot_loss(loaded_dict,'loss_history_burgers.png')
+    # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
     print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
     
 print("value of f: ",np.sum(f_pred**2))
