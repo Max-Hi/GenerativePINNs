@@ -100,7 +100,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 5e-3), lambdas: tuple = (1,1)):
         """
         
         X0: T=0, initial condition, randomly drawn from the domain
@@ -120,11 +120,11 @@ class PINN_GAN(nn.Module):
 
         # Hyperparameters
         self.q = [
-            5e-3,
-            5e-3     
+            1e-4,
+            1e-4     
         ]
         self.lambdas = lambdas
-        self.e = [5e-4, 1e-4]  # Hyperparameter for PW update
+        self.e = [2e-2, 5e-4]  # Hyperparameter for PW update
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -151,11 +151,17 @@ class PINN_GAN(nn.Module):
         
         # Bounds
         boundary = torch.tensor(boundary)
+<<<<<<< HEAD
         self.lb = torch.tensor(boundary[0:1, :])
         self.ub = torch.tensor(boundary[1:2, :])
         # print(self.lb)
         # print(self.ub)
         # print(self.lb.shape)
+=======
+        boundary = boundary.transpose(0,1)
+        self.lb = torch.tensor(boundary[:, 0:1])
+        self.ub = torch.tensor(boundary[:, 1:2])
+>>>>>>> dca71bca6e73d573ded6d46a7978607d90b17d4d
         
         # Sizes
         self.layers_D = layers_D
@@ -254,7 +260,7 @@ class PINN_GAN(nn.Module):
         e = self.e[0]
         w = self.domain_weights
         rho = torch.sum(w*(self.beta(f_pred, e)==-1.0))
-        epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+        epsilon = 1e-6 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
         # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
         # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
         alpha = self.q[0] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -270,7 +276,7 @@ class PINN_GAN(nn.Module):
         for index, w in enumerate(self.boundary_weights):
             e = self.e[-1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
-            epsilon = 1e-4 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
+            epsilon = 1e-6 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
             alpha = self.q[-1] * torch.log((1-rho+epsilon)/(rho+epsilon))
@@ -309,7 +315,7 @@ class PINN_GAN(nn.Module):
         D_input = self.discriminator.forward(input_D)
         L_D = loss_l1(torch.zeros_like(D_input), 
                     D_input)
-        
+        # NOTE: 
         L_T = self.loss_T()
 
         return self.lambdas[1]*L_T + L_D
@@ -337,12 +343,13 @@ class PINN_GAN(nn.Module):
         '''
         #TODO 
         loss = nn.L1Loss()
+        self.y_t_pred = self.net_y(self.x_t)
         discriminator_T = self.discriminator.forward(
-            torch.concat((self.x0, self.y0), 1)
+            torch.concat((self.x_t, self.y_t), 1)
             )
-
+        
         discriminator_L = self.discriminator.forward(
-            torch.concat((self.x0, self.y0_pred), 1)
+            torch.concat((self.x_t, self.y_t_pred), 1)
             )
         loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
                 loss(discriminator_T, torch.ones_like(discriminator_T))
@@ -417,5 +424,6 @@ class PINN_GAN(nn.Module):
 
 
 
+    
     
     

@@ -49,7 +49,7 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     #     ]
     # }
     # mpl.rcParams.update(pgf_with_latex)
-    fig, axs = plt.subplots(nrows=1, ncols = 2, figsize = (10, 8))
+    fig, _ = plt.subplots(nrows=1, ncols = 2, figsize = (10, 8))
     # error_u = np.linalg.norm(output_vec-ground_truth)
     U_pred = griddata(X_star, output_vec.flatten(), (X, T), method = "cubic")
     U_actual = griddata(X_star, ground_truth.flatten(), (X, T), method = "cubic")
