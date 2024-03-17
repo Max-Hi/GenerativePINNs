@@ -120,7 +120,7 @@ class PINN_GAN(nn.Module):
         """
         super().__init__()
 
-        # Hyperparameters
+       # Hyperparameters
         self.q = q
         self.lambdas = lambdas
         self.e = e  # Hyperparameter for PW update
@@ -308,7 +308,7 @@ class PINN_GAN(nn.Module):
         
         input_D = torch.concat((self.x_f, self.y_f_pred), 1)
         D_input = self.discriminator.forward(input_D)
-        L_D = loss_l1(torch.zeros_like(D_input), 
+        L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
         # NOTE: 
         L_T = self.loss_T()
@@ -350,7 +350,7 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 2):
+    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
         if len(grid) == 2:
             X, T = grid
@@ -398,9 +398,9 @@ class PINN_GAN(nn.Module):
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                print(X_star.shape[1])
                 if X_star.shape[1] == 2:#TODO dimensionality
                     plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
+                    
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     

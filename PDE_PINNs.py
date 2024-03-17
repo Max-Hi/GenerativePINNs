@@ -207,7 +207,6 @@ class Poisson_PINN_GAN(PINN_GAN):
         y = self.net_y(X)
         
         X.requires_grad_(True)
-        print("shape", y.shape)
         d2y_dx1_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
             # Compute the first derivative of y[i] with respect to x1
@@ -232,7 +231,8 @@ class Poisson_PINN_GAN(PINN_GAN):
             # Store the computed second derivative in the placeholder tensor
             d2y_dx2_2[:, i] = d2y_dx2_2_i   
 
-        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X[:,0])*torch.sin(torch.pi*X[:,1])
+        # f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X[:,0])*torch.sin(torch.pi*X[:,1])
+        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(X[:,0])*torch.sin(X[:,1])
         return f.to(torch.float32)
 
     def boundary(self):
@@ -310,7 +310,6 @@ class PoissonHD_PINN_GAN(PINN_GAN):
 
 class Helmholtz_PINN_GAN(PINN_GAN):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
-    
         if model_name!="":
             model_name = "holmholtz"+model_name
         super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
@@ -322,7 +321,6 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
-            print("bound")
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
         
         assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)+1}"
@@ -368,17 +366,20 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         X2_ub = self.x_ub[1]
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
-        '''
+        
         print("X1_lb: ",X1_lb)
-        print("sin(x1lb): ", torch.sin(self.k*X1_lb))
-        print("X1_ub: ",X1_ub)
+        print("sin(x1lb): ", torch.sin(self.k*X1_lb[:,0]))
         print("y1_lb: ",y1_lb)
+        print("X1_ub: ",X1_ub)
+        print("sin(x1ub): ", torch.sin(self.k*X1_ub[:,0]))
         print("y1_ub: ",y1_ub)
         print("X2_lb: ",X2_lb)
-        print("X2_ub: ",X2_ub)
+        print("sin(x2lb): ", torch.sin(self.k*X2_lb[:,0]))
         print("y2_lb: ",y2_lb)
+        print("X2_ub: ",X2_ub)
+        print("sin(x2ub): ", torch.sin(self.k*X2_ub[:,0]))
         print("y2_ub: ",y2_ub)
-        '''
+        
         boundaries = [torch.sin(self.k*X1_lb[:,0])-y1_lb,torch.sin(self.k*X1_ub[:,0])-y1_ub,torch.sin(self.k*X2_lb[:,0])-y2_lb,torch.sin(self.k*X2_ub[:,0])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
