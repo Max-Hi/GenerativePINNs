@@ -200,8 +200,8 @@ class Poisson_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
-        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
-        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)+1}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)+1}"
             
     def _net_f(self, X):
         y = self.net_y(X)
@@ -356,20 +356,30 @@ class Helmholtz_PINN_GAN(PINN_GAN):
             # Store the computed second derivative in the placeholder tensor
             d2y_dx2_2[:, i] = d2y_dx2_2_i 
             
-        f = d2y_dx1_2 + d2y_dx2_2 + self.k**2*y
+        f = d2y_dx1_2 + d2y_dx2_2 + self.k**2 * y
         return f.to(torch.float32)
 
     def boundary(self):
         X1_lb = self.x_lb[0]
-        X1_ub = self.x_lb[0]
+        X1_ub = self.x_ub[0]
         y1_lb = self.net_y(X1_lb)
         y1_ub = self.net_y(X1_ub)
         X2_lb = self.x_lb[1]
-        X2_ub = self.x_lb[1]
+        X2_ub = self.x_ub[1]
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
-        
-        boundaries = [torch.sin(self.k*X1_lb)-y1_lb,torch.sin(self.k*X1_ub)-y1_ub,torch.sin(self.k*X2_lb)-y2_lb,torch.sin(self.k*X2_ub)-y2_ub]
+        '''
+        print("X1_lb: ",X1_lb)
+        print("sin(x1lb): ", torch.sin(self.k*X1_lb))
+        print("X1_ub: ",X1_ub)
+        print("y1_lb: ",y1_lb)
+        print("y1_ub: ",y1_ub)
+        print("X2_lb: ",X2_lb)
+        print("X2_ub: ",X2_ub)
+        print("y2_lb: ",y2_lb)
+        print("y2_ub: ",y2_ub)
+        '''
+        boundaries = [torch.sin(self.k*X1_lb[:,0])-y1_lb,torch.sin(self.k*X1_ub[:,0])-y1_ub,torch.sin(self.k*X2_lb[:,0])-y2_lb,torch.sin(self.k*X2_ub[:,0])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
     
