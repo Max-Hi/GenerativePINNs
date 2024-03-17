@@ -342,7 +342,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
             # Store the computed second derivative in the placeholder tensor
             d2y_dx2_2[:, i] = d2y_dx2_2_i 
             
-        f = d2y_dx1_2 + d2y_dx2_2 + self.k*y**2
+        f = d2y_dx1_2 + d2y_dx2_2 + self.k**2*y
         return f.to(torch.float32)
 
     def boundary(self):
