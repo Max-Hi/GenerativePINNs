@@ -79,7 +79,8 @@ match pde:
     case "poissonHD":
         pass
     case "helmholtz":
-        k = 1
+        print("number of xt points:", X_t.shape[0])
+        k = 2*np.pi
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, k=k, \
