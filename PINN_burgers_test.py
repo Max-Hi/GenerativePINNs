@@ -12,7 +12,6 @@ import torch.nn as nn
 from torch.optim import adam
 # from utils.plot.py import 
 torch.set_default_dtype(torch.float32)
-
 # set random seeds for reproducability
 np.random.seed(42)
 torch.manual_seed(42)
@@ -28,6 +27,7 @@ print(f"Using {device} device")
 
 torch.autograd.set_detect_anomaly(True)                   
 # Initialize NNs
+
 class Generator(nn.Module):
     def __init__(self, layers_G):
         super(Generator, self).__init__()
@@ -70,6 +70,20 @@ class Generator_LSTM(nn.Module):
     def forward(self, x):
         # print(x.unsqueeze(1).shape)
         out, _ = self.lstm(x.unsqueeze(1))#, (h0, c0))  # Forward pass through LSTM layer
+        out = self.linear(out[:, -1, :]) 
+        return 
+    
+class Generator_RNN(nn.Module):
+    def __init__(self, layers_G):
+        super(Generator_RNN, self).__init__()
+        self.layers = layers_G
+        self.num_layers = 5
+        # input_size, hidden_size, num_layers, output_size
+        self.rnn = nn.RNN(self.layers[0],self.layers[1], self.num_layers, batch_first= True)
+        self.linear = nn.Linear(self.layers[1], self.layers[-1])
+    def forward(self, x):
+        # print(x.unsqueeze(1).shape)
+        out, _ = self.rnn(x.unsqueeze(1))#, (h0, c0))  # Forward pass through LSTM layer
         out = self.linear(out[:, -1, :]) 
         return out
 
@@ -167,7 +181,7 @@ class PINN_GAN_burgers(nn.Module):
         self.layers_D = layers_D
         self.layers_G = layers_G
         
-        self.generator = Generator_LSTM(self.layers_G)
+        self.generator = Generator_RNN(self.layers_G)
         self.discriminator = Discriminator(self.layers_D)
         
 
@@ -266,7 +280,6 @@ class PINN_GAN_burgers(nn.Module):
         # TODO: call util.py for point loss
         loss = nn.MSELoss()
         loss_l1 = nn.L1Loss()
-        
         self.u_lb_pred, self.u_x_lb_pred = self.net_uv(self.x_lb, self.t_lb)
         self.u_ub_pred, self.u_x_ub_pred = self.net_uv(self.x_ub, self.t_ub)
         self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
@@ -356,8 +369,10 @@ class PINN_GAN_burgers(nn.Module):
         return loss_D
 
 
-    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 5e-2, lr_D = 5e-3, lr_decay = 0.7, n_critic = 1):
+    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-2, lr_D = 5e-3, lr_decay = 0.1, n_critic = 1):
         # Optimizer
+
+        # LSTM dynamic training rate: starting 5e-2 lr_decay = 0.7
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)
         optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr_G)
@@ -367,7 +382,6 @@ class PINN_GAN_burgers(nn.Module):
         for epoch in tqdm(range(epochs)):
             # TODO done?
             self.u0_pred, _  = self.net_uv(self.x0, self.t0)
-     
             self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
             self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
             optimizer_D.zero_grad()
