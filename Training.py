@@ -81,43 +81,55 @@ model.train(6500, grid, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
-if pde=="schroedinger":
-    u_star, v_star, h_star = Y_star[0], Y_star[1], Y_star[2]
-    
-    # Predictions
-    y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-    u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
-    h_pred = np.sqrt(u_pred**2 + v_pred**2)
+match pde:
+    case "schroedinger":
+        u_star, v_star, h_star = Y_star[0], Y_star[1], Y_star[2]
+        
+        # Predictions
+        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+        u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
+        h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
-    plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
-    plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
-    plt.legend()
-    plt.savefig("Plots/"+model_name)
-    
-    # Errors
-    errors = {
-            'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
-            'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
-            'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
-            }
-    print('Errors: ')
-    for key in errors:
-        print(key+": ", errors[key])
+        plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
+        plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
+        plt.legend()
+        plt.savefig("Plots/"+model_name)
+        
+        # Errors
+        errors = {
+                'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2),
+                'v': np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2),
+                'h': np.linalg.norm(h_star-h_pred,2)/np.linalg.norm(h_star,2)
+                }
+        print('Errors: ')
+        for key in errors:
+            print(key+": ", errors[key])
 
-else:
-    y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-    
-    mat = torch.load("burgers_pred.pt")
-    
-    X, T = grid # TODO if grid has more than two entries ???
+    case "burgers":
+        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+        
+        mat = torch.load("burgers_pred.pt")
+        
+        X, T = grid # TODO if grid has more than two entries ???
 
-    plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
-    # plot errors
-    with open('loss_history_burgers.pkl', 'rb') as f:
-        loaded_dict = pickle.load(f)
-    plot_loss(loaded_dict,'loss_history_burgers.png')
-    # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
-    print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
+        plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+        # plot errors
+        with open('loss_history_burgers.pkl', 'rb') as f:
+            loaded_dict = pickle.load(f)
+        plot_loss(loaded_dict,'loss_history_burgers.png')
+        # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
+        print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
+
+    case "heat":
+        pass
+    case "poisson":
+        pass
+    case "poissonHD":
+        pass
+    case "helmholtz":
+        pass
+    case _:
+        print("pde not recognised")
     
 print("value of f: ",np.sum(f_pred**2))
 
