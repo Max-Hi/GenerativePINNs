@@ -102,7 +102,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
         
         X0: T=0, initial condition, randomly drawn from the domain
@@ -116,18 +116,14 @@ class PINN_GAN(nn.Module):
         layers: the number of neurons in each layer (_D for discriminator, _G for generator)
         enable_GAN, enable_PW: 
         model_name: the name the model is saved under. If the name is an empty string, it is not saved. This is the default.
-        lr: the learning rate as a tupel
+        lr: the learning rate as a 3-tupel in the order lr_G, lr_PW, lr_D
         """
         super().__init__()
 
         # Hyperparameters
         self.q = q
-        print("q", self.q)
         self.lambdas = lambdas
-        print("lambda",self.lambdas)
-        print("e in: ",e)
         self.e = e  # Hyperparameter for PW update
-        print("e",self.e)
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -273,12 +269,12 @@ class PINN_GAN(nn.Module):
         
     
         for index, w in enumerate(self.boundary_weights):
-            e = self.e[-1]
+            e = self.e[index+1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
             epsilon = 1e-6 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
-            alpha = self.q[-1] * torch.log((1-rho+epsilon)/(rho+epsilon))
+            alpha = self.q[index+1] * torch.log((1-rho+epsilon)/(rho+epsilon))
             w_new = w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32)) / \
                 torch.sum(w*torch.exp(-alpha*self.beta(boundaries[index], e).to(torch.float32))) # the sum sums along the values of w
             w_new.requires_grad_(False)

@@ -32,6 +32,8 @@ class Schroedinger_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
     
     def _net_f(self, X):
         y = self.net_y(X)
@@ -128,6 +130,8 @@ class Heat_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
             
     def _net_f(self, X):
         y = self.net_y(X)
@@ -196,6 +200,8 @@ class Poisson_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
             
     def _net_f(self, X):
         y = self.net_y(X)
@@ -258,6 +264,9 @@ class PoissonHD_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
              
     def _net_f(self, X):
         y = self.net_y(X)
@@ -313,7 +322,11 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
+            print("bound")
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
         
     def _net_f(self, X):
         y = self.net_y(X)
@@ -375,6 +388,8 @@ class Burgers_PINN_GAN(PINN_GAN):
         self.boundary_weights = []
         for number_boundary_points in n_boundaries:
             self.boundary_weights.append(torch.full((number_boundary_points,), 1/number_boundary_points, requires_grad=False))
+        assert len(self.e) == len(self.boundary_weights)+1, f"e input has wrong length. Is {len(self.e)} and should be {len(self.boundary_weights)}"
+        assert len(self.q) == len(self.boundary_weights)+1, f"q input has wrong length. Is {len(self.q)} and should be {len(self.boundary_weights)}"
         
     def _net_f(self, X):
         y = self.net_y(X)
