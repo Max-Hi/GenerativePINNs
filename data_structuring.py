@@ -117,8 +117,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     grid = [X1, X2]
     X_star = np.hstack((X1.flatten()[:,None], X2.flatten()[:,None])) # for prediction
     Y_star = Exact.flatten()[:,None] # for prediction as ground truth
-    print("Y_star max", np.max(Y_star))
-
+    
     
     # No initial data so turn to boundary data
     idx1 = np.random.choice(np.where(X_star[:,0] == lb[0])[0], N_b//4, replace=False)

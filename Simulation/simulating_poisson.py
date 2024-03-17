@@ -18,16 +18,17 @@ u(x1, x2) = 1/(2*pi^2) * sin(pi*x1) * sin(pi*x2)
 
 N_x1 = 200 # number of spatial points
 N_x2 = 200 # number of spatial points
-x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
-x2 = np.linspace(0, 1, N_x2, endpoint= True)[None, :]
+x1 = np.linspace(0, np.pi, N_x1, endpoint = True)[None, :]
+x2 = np.linspace(0, np.pi, N_x2, endpoint= True)[None, :]
 usol = np.zeros((N_x1, N_x2))
 
 # Create the initial condition
 usol[:, 0] = 0
 usol[0, :] = 0
 
+k = 1
 # Ex1act solution
-usol = 1/(2*np.pi**2) * np.dot(np.sin(np.pi*x1.T), np.sin(np.pi*x2))
+usol = (1/(2*(k**2))) * np.dot(np.sin(k*x1.T), np.sin(k*x2))
 
 # save the data to mat file
 sio.savemat('Data/poisson.mat', {'x1': x1, 'x2': x2, 'usol': usol})
