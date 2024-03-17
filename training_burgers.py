@@ -4,7 +4,7 @@ import scipy.io
 from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
-from PINN_burgers import PINN_GAN_burgers, Discriminator, Generator
+from PINN_burgers_test import PINN_GAN_burgers, Discriminator, Generator
 from utils.plot import plot_with_ground_truth, plot_loss
 import pickle
 torch.set_default_dtype(torch.float32)
@@ -32,7 +32,7 @@ t \in [0, 1]
 u0 = -sin(pi*x)
 u(t, -1) = u(t, 1) =0
 """
-mat = torch.load("burgers_pred.pt")
+# mat = torch.load("burgers_pred.pt")
 
 
 # input 
@@ -76,20 +76,20 @@ X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
 
 num_boundary_conditions = 4
 # Train the model
-# model = PINN_GAN_burgers(X_exact, u_exact, nu, X_f, X0, X_lb, X_ub, boundary, num_boundary_conditions, layers_G, layers_D)
-# start_time = time.time()                
-# model.train(X_star, u_star, epochs=500)
-# print('Training time: %.4f' % (time.time() - start_time))
+model = PINN_GAN_burgers(X_exact, u_exact, nu, X_f, X0, X_lb, X_ub, boundary, num_boundary_conditions, layers_G, layers_D)
+start_time = time.time()                
+model.train(X_star, u_star, epochs=500)
+print('Training time: %.4f' % (time.time() - start_time))
 
 
 # Predictions
-# u_pred, _ = model.predict(X_star)
+u_pred, _ = model.predict(X_star)
 
-# torch.save(u_pred, "burgers_pred.pt")
+torch.save(u_pred, "burgers_pred.pt")
 
 # Errors
-# errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
-# print('Errors: ', errors)
+errors = {'u': np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)}
+print('Errors: ', errors)
 
 # plot result
 mat = torch.load("burgers_pred.pt")
