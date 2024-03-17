@@ -43,9 +43,7 @@ class Generator(nn.Module):
             self.model.add_module("tanh" + str(l), nn.Tanh())
         self.model.add_module("linear" + str(len(self.layers) - 2), nn.Linear(self.layers[-2], self.layers[-1]))
     def forward(self, x):
-        return self.model(x)
         try:
-            print(8.41)
             return self.model(x)
         except RuntimeError as e:
             print(f"Caught RuntimeError: {e}")
@@ -104,7 +102,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 5e-3), lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
         
         X0: T=0, initial condition, randomly drawn from the domain
@@ -123,12 +121,13 @@ class PINN_GAN(nn.Module):
         super().__init__()
 
         # Hyperparameters
-        self.q = [
-            1e-4,
-            1e-4     
-        ]
+        self.q = q
+        print("q", self.q)
         self.lambdas = lambdas
-        self.e = [2e-2, 5e-4]  # Hyperparameter for PW update
+        print("lambda",self.lambdas)
+        print("e in: ",e)
+        self.e = e  # Hyperparameter for PW update
+        print("e",self.e)
         
         # parameters for saving
         self.create_saves = model_name!=""
@@ -145,7 +144,6 @@ class PINN_GAN(nn.Module):
             self.y0 = torch.tensor(Y0)
         
         # Boundary Data
-        print(X_lb, X_ub)
         if X_lb is not None:
             self.x_lb = torch.tensor(X_lb, requires_grad=True)
         if X_ub is not None:
@@ -214,16 +212,11 @@ class PINN_GAN(nn.Module):
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
     def net_y(self, x):
-        print(8.1)
         X = x.transpose(0,1)
-        print(8.2)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
-        print(8.3)
         self.H = H.transpose(0,1)
-        print(8.4)
         # NOTE: ????
         y = self.generator.forward(self.H)
-        print(8.5)
         self.y = y
         return y
 
@@ -239,11 +232,8 @@ class PINN_GAN(nn.Module):
             sys.exit(1)
 
     def forward(self, x):
-        print(7.111)
         y = self.net_y(x)
-        print(7.112)
         f = self.net_f(x)
-        print(7.113)
         return y, f
     
     def beta(self, f_pred, e):
@@ -383,69 +373,55 @@ class PINN_GAN(nn.Module):
             # self.y0_pred = self.net_y(self.x0)
             self.f_pred = self.net_f(self.x_f)
             if self.enable_GAN == True:
-                print(1)
                 self.optimizer_D.zero_grad()
                 loss_Discr = self.loss_D()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
                 self.optimizer_G.zero_grad()
-                print(2)
                 
                 loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
                 if self.enable_PW == True:
-                    print(3)
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
                     loss_PW.backward(retain_graph=True)
-                print(4)
                 self.optimizer_G.step()
                 # weight updates
                 if self.enable_PW == True:
-                    print(5)
                     self.optimizer_PW.step()
                     rho = self.weight_update(self.f_pred)
                     self.rho_values.append(rho)
                     self.loss_values["Pointwise"].append(loss_PW.detach().numpy())
                 self.loss_values["Generator"].append(loss_G.detach().numpy())   
             if self.enable_GAN == True:  
-                print(6)  
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
-                print(7)
-  
             if epoch % 100 == 0:
                 print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
-                print(7.1)
+                print(f"rho: {rho}")
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
-                print(7.2)
                 y_pred = y_pred[:,0:1] # in case of multidim y
-                print(7.3)
                 
-                 #TODO dimensionality
-                print(7.4)
-                plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
-                print(7.5)
+                print(X_star.shape[1])
+                if X_star.shape[1] == 2:#TODO dimensionality
+                    plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
-            print(8)
             if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
+                print("early stopping")
                 if self.create_saves:
                     self.save(epoch, n_critic)
                 break
-            print(9)
                 
     def predict(self, X_star):
         '''
         y_star = self.generator.forward(X_star)
         f_star = self.net_f(X_star) '''
-        print(7.11)
         y_star, f_star = self.forward(X_star)
-        print(7.12)
         return y_star.detach().numpy(), f_star.detach().numpy()
 
 
