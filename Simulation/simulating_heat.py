@@ -12,14 +12,14 @@ t \in [0, 10]
 u(x1, x2, 0) = x1 - x2
 """
 
-N_x1 = 256 # number of spatial points
-N_x2 = 256 # number of spatial points
-N_t = 100 # number of time points
+N_x1 = 64 # number of spatial points
+N_x2 = 64 # number of spatial points
+N_t = 50 # number of time points
 
 
 x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
 x2 = np.linspace(0, 1, N_x2, endpoint = True)[None, :]
-t = np.linspace(0, 100, N_t, endpoint = False)[None, :]
+t = np.linspace(0, 50, N_t, endpoint = False)[None, :]
 usol = np.zeros((N_x1, N_x2, N_t))
 
 # initial condition

@@ -16,8 +16,8 @@ Solve that we can get the ex1act solution:
 u(x1, x2) = 1/(2*pi^2) * sin(pi*x1) * sin(pi*x2)
 """
 
-N_x1 = 2000 # number of spatial points
-N_x2 = 2000 # number of spatial points
+N_x1 = 200 # number of spatial points
+N_x2 = 200 # number of spatial points
 x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
 x2 = np.linspace(0, 1, N_x2, endpoint= True)[None, :]
 usol = np.zeros((N_x1, N_x2))

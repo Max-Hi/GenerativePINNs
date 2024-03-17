@@ -18,8 +18,8 @@ Solve that we can get the exact solution:
 u(x, x2) = sin(k*x)
 """
 
-N_x1 = 2000 # number of spatial points
-N_x2 = 2000 # number of spatial points
+N_x1 = 200 # number of spatial points
+N_x2 = 200 # number of spatial points
 
 x1 = np.linspace(0, 1, N_x1, endpoint = True)[None, :]
 x2 = np.linspace(0, 1, N_x2, endpoint = True)[None, :]
