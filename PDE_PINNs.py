@@ -201,6 +201,7 @@ class Poisson_PINN_GAN(PINN_GAN):
         y = self.net_y(X)
         
         X.requires_grad_(True)
+        print("shape", y.shape)
         d2y_dx1_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
             # Compute the first derivative of y[i] with respect to x1
@@ -212,7 +213,7 @@ class Poisson_PINN_GAN(PINN_GAN):
             
             # Store the computed second derivative in the placeholder tensor
             d2y_dx1_2[:, i] = d2y_dx1_2_i      
-
+        
         d2y_dx2_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
             # Compute the first derivative of y[i] with respect to x1
@@ -223,9 +224,9 @@ class Poisson_PINN_GAN(PINN_GAN):
             d2y_dx2_2_i = torch.autograd.grad(dy_dx2, X, grad_outputs=torch.ones_like(dy_dx2), create_graph=True)[0][:, 1]
             
             # Store the computed second derivative in the placeholder tensor
-            d2y_dx2_2[:, i] = d2y_dx2_2_i     
+            d2y_dx2_2[:, i] = d2y_dx2_2_i   
 
-        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X)*torch.sin(torch.pi*y)
+        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X[:,0])*torch.sin(torch.pi*X[:,1])
         return f.to(torch.float32)
 
     def boundary(self):
@@ -263,7 +264,7 @@ class PoissonHD_PINN_GAN(PINN_GAN):
         
         X.requires_grad_(True)
         # First derivatives
-        first_derivatives = torch.autograd.grad(outputs=y, inputs=x, grad_outputs=torch.ones_like(y), create_graph=True)[0]
+        first_derivatives = torch.autograd.grad(outputs=y, inputs=X, grad_outputs=torch.ones_like(y), create_graph=True)[0]
 
         # Compute second derivatives
         second_derivatives = []
