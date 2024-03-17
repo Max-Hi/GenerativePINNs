@@ -153,10 +153,8 @@ class PINN_GAN(nn.Module):
         self.y_t = torch.tensor(Y_t)
         
         # Bounds
-        boundary = torch.tensor(boundary)
-        boundary = boundary.transpose(0,1)
-        self.lb = torch.tensor(boundary[:, 0:1])
-        self.ub = torch.tensor(boundary[:, 1:2])
+        self.lb = torch.tensor(boundary[0:1, :].T)
+        self.ub = torch.tensor(boundary[1:2, :].T)
         
         # Sizes
         self.layers_D = layers_D

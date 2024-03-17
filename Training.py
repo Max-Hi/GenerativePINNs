@@ -63,6 +63,8 @@ match pde:
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
+        layers_G[0] = 3 # input dimension of Generator is 3 for heat equation
+        layers_D[0] = 4 # input dimension of Discriminator is 4 for heat equation
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, \
