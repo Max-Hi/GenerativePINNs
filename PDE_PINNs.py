@@ -366,7 +366,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         X2_ub = self.x_ub[1]
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
-        
+        '''
         print("X1_lb: ",X1_lb)
         print("sin(x1lb): ", torch.sin(self.k*X1_lb[:,0]))
         print("y1_lb: ",y1_lb)
@@ -379,7 +379,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         print("X2_ub: ",X2_ub)
         print("sin(x2ub): ", torch.sin(self.k*X2_ub[:,0]))
         print("y2_ub: ",y2_ub)
-        
+        '''
         boundaries = [torch.sin(self.k*X1_lb[:,0])-y1_lb,torch.sin(self.k*X1_ub[:,0])-y1_ub,torch.sin(self.k*X2_lb[:,0])-y2_lb,torch.sin(self.k*X2_ub[:,0])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries

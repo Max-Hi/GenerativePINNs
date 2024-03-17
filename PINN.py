@@ -393,8 +393,13 @@ class PINN_GAN(nn.Module):
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
             if epoch % 100 == 0:
-                print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
-                print(f"rho: {rho}")
+                print(f'Epoch: {epoch}, Loss_G: {loss_G.item()}')
+                if self.enable_GAN:
+                    print(f'Loss_D: {loss_Discr.item()}')
+                if self.enable_PW:
+                    print(f"rho: {rho}")
+                    print(f"PW loss: {loss_PW}")
+                print(f"Exact training loss: {self.loss_T()}, boundary loss: {list(map(lambda x: float(torch.sum(x**2).detach().numpy()),self.boundary()))}")
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
@@ -407,11 +412,12 @@ class PINN_GAN(nn.Module):
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
-            if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
-                print("early stopping")
-                if self.create_saves:
-                    self.save(epoch, n_critic)
-                break
+            if self.enable_PW:
+                if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
+                    print("early stopping")
+                    if self.create_saves:
+                        self.save(epoch, n_critic)
+                    break
                 
     def predict(self, X_star):
         '''
