@@ -55,7 +55,9 @@ def parse_arguments():
 if __name__ == "__main__": # only execute when running not when possibly importing from here
     pde, model_name, epochs, lambdas, enable_GAN, enable_PW, lr, e = parse_arguments()
 
-print(pde, model_name, lambdas, enable_GAN)
+print("-------------------------------------------")
+print(f"training {model_name} to learn {pde} "+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
+print("-------------------------------------------")
 
 
 
@@ -76,7 +78,6 @@ if pde == "":
     intermediary_pictures = True # clearly not running in automated mode
 else:
     intermediary_pictures = False  
-
 
 # Load data from simulated dataset
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
@@ -105,7 +106,7 @@ match pde:
         layers_D[0] = 4
         model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                    intermediary_pictures=intermediary_pictures, enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-4, 1e-4, 1e-4], q = [10e-4]+[5e-3, 5e-3, 5e-3])
     case "burgers":
         layers_G[0] = 2
@@ -123,14 +124,14 @@ match pde:
         layers_D[0] = 4
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                    intermediary_pictures=intermediary_pictures, enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-6], q = [10e-4]+[5e-5])
     case "poisson":
         layers_G[0] = 2
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 intermediary_pictures=intermediary_pictures, layers_G= layers_G, layers_D = layers_D, \
                     enable_GAN = False, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lambdas = [1,1], lr = (1e-3, 1e-6, 5e-6), e = [5e-4]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
@@ -141,7 +142,7 @@ match pde:
         layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
+                    intermediary_pictures=intermediary_pictures, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
                         lambdas = [2,1], lr = (1e-3, 1e-5, 5e-5), e = [5e-4]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
         print("pde not recognised")

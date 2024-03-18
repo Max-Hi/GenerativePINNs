@@ -233,7 +233,6 @@ class Poisson_PINN_GAN(PINN_GAN):
 
         # f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X[:,0])*torch.sin(torch.pi*X[:,1])
         f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(X[:,0:1])*torch.sin(X[:,1:2])
-        # print(">>>>>>>>>>>>>>>>>>", f.shape, float(torch.sum(f)))
         return f.to(torch.float32)
 
     def boundary(self):
@@ -248,15 +247,6 @@ class Poisson_PINN_GAN(PINN_GAN):
         
         boundaries = [y1_lb, y1_ub, y2_lb, y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
-        
-        print("#################################")
-        print("boundaries")
-        for b in boundaries:
-            #print(b)
-            print("size: ", b.shape)
-            print("in sum: ", torch.sum(b))
-        print("#################################")
-        
         return boundaries
 
 class PoissonHD_PINN_GAN(PINN_GAN):
@@ -322,7 +312,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         if model_name!="":
             model_name = "holmholtz"+model_name
-        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, intermediary_pictures, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         self.k = k
         
@@ -376,30 +366,8 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         X2_ub = self.x_ub[1]
         y2_lb = self.net_y(X2_lb)
         y2_ub = self.net_y(X2_ub)
-        '''
-        print("X1_lb: ",X1_lb)
-        print("sin(x1lb): ", torch.sin(self.k*X1_lb[:,0]))
-        print("y1_lb: ",y1_lb)
-        print("X1_ub: ",X1_ub)
-        print("sin(x1ub): ", torch.sin(self.k*X1_ub[:,0]))
-        print("y1_ub: ",y1_ub)
-        print("X2_lb: ",X2_lb)
-        print("sin(x2lb): ", torch.sin(self.k*X2_lb[:,0]))
-        print("y2_lb: ",y2_lb)
-        print("X2_ub: ",X2_ub)
-        print("sin(x2ub): ", torch.sin(self.k*X2_ub[:,0]))
-        print("y2_ub: ",y2_ub)
-        '''
-        # print(y1_lb.shape, X1_lb[:,0].shape)
         boundaries = [torch.sin(self.k*X1_lb[:,0:1])-y1_lb,torch.sin(self.k*X1_ub[:,0:1])-y1_ub,torch.sin(self.k*X2_lb[:,0:1])-y2_lb,torch.sin(self.k*X2_ub[:,0:1])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
-        print("#################################")
-        print("boundaries")
-        for b in boundaries:
-            #print(b)
-            print("size: ", b.shape)
-            print("in sum: ", torch.sum(b))
-        print("#################################")
         return boundaries
     
 class Burgers_PINN_GAN(PINN_GAN):
