@@ -276,10 +276,11 @@ class PINN_GAN(nn.Module):
         w_new.requires_grad_(False)
         w_new.to(torch.float32)
         self.domain_weights = w_new
-        print("____________________")
-        print(torch.sum(f_pred**2, dim=1))
-        print(self.domain_weights)
-        print("____________________")
+        # print("____________________")
+        # print(torch.sum(f_pred**2, dim=1))
+        # print(self.domain_weights)
+        # print(self.boundary_weights)
+        # print("____________________")
         
         rho_values.append(rho)
         
@@ -322,7 +323,7 @@ class PINN_GAN(nn.Module):
         for index, boundary in enumerate(self.boundary()):
             L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary))
         
-        return self.lambdas[1] * L_T + L
+        return L # self.lambdas[1] * L_T + L
     
     def loss_G(self):
         ''' 
@@ -352,8 +353,11 @@ class PINN_GAN(nn.Module):
         
         f_loss = weighted_MSELoss()
         L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
+        print("!!!!!! L_PW -> ", L_PW)
         for index, boundary in enumerate(self.boundary()):
-            L_PW += self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
+            L = self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
+            print("!!!!!! L_B -> ", L)
+            L_PW += L
         return L_PW 
     
     def loss_D(self):
@@ -395,7 +399,7 @@ class PINN_GAN(nn.Module):
             # TODO done?
             # self.y0_pred = self.net_y(self.x0)
             self.f_pred = self.net_f(self.x_f)
-            if self.enable_GAN == True:
+            if self.enable_GAN:
                 self.optimizer_D.zero_grad()
                 loss_Discr = self.loss_D()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
@@ -411,6 +415,11 @@ class PINN_GAN(nn.Module):
                 if self.enable_PW:
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
+                    # print("------------------->>>")
+                    # print("loss diff", loss_PW - self.loss_plain())
+                    # print("loss", loss_PW)
+                    # print("loss", self.loss_plain())
+                    # print("test")
                     loss_PW.backward(retain_graph=True)
                 if self.no_enable:
                     self.optimizer.step()

@@ -340,7 +340,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
             d2y_dx1_2_i = torch.autograd.grad(dy_dx1, X, grad_outputs=torch.ones_like(dy_dx1), create_graph=True)[0][:, 0]
             
             # Store the computed second derivative in the placeholder tensor
-            d2y_dx1_2[:, i] = d2y_dx1_2_i      
+            d2y_dx1_2[:, i] = d2y_dx1_2_i
 
         d2y_dx2_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
@@ -380,8 +380,14 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         print("sin(x2ub): ", torch.sin(self.k*X2_ub[:,0]))
         print("y2_ub: ",y2_ub)
         '''
-        boundaries = [torch.sin(self.k*X1_lb[:,0])-y1_lb,torch.sin(self.k*X1_ub[:,0])-y1_ub,torch.sin(self.k*X2_lb[:,0])-y2_lb,torch.sin(self.k*X2_ub[:,0])-y2_ub]
+        # print(y1_lb.shape, X1_lb[:,0].shape)
+        boundaries = [torch.sin(self.k*X1_lb[:,0:1])-y1_lb,torch.sin(self.k*X1_ub[:,0:1])-y1_ub,torch.sin(self.k*X2_lb[:,0:1])-y2_lb,torch.sin(self.k*X2_ub[:,0:1])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
+        # print("#################################")
+        # print("boundaries")
+        # for b in boundaries:
+        #     print("in sum: ", torch.sum(b))
+        # print("#################################")
         return boundaries
     
 class Burgers_PINN_GAN(PINN_GAN):
