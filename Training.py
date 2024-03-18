@@ -66,7 +66,7 @@ match pde:
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, nu=nu, \
+                    enable_GAN = False, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
         layers_G[0] = 3
@@ -82,7 +82,7 @@ match pde:
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                    enable_GAN = False, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lambdas = [1,1], lr = (1e-3, 1e-6, 5e-6), e = [5e-4]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
         pass
@@ -92,7 +92,7 @@ match pde:
         layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
+                    enable_GAN = False, enable_PW = False, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
                         lambdas = [200,1], lr = (1e-3, 1e-5, 5e-5), e = [5e-4]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
         print("pde not recognised")

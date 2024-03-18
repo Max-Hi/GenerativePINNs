@@ -276,6 +276,10 @@ class PINN_GAN(nn.Module):
         w_new.requires_grad_(False)
         w_new.to(torch.float32)
         self.domain_weights = w_new
+        print("____________________")
+        print(torch.sum(f_pred**2, dim=1))
+        print(self.domain_weights)
+        print("____________________")
         
         rho_values.append(rho)
         
@@ -350,10 +354,7 @@ class PINN_GAN(nn.Module):
         L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
         for index, boundary in enumerate(self.boundary()):
             L_PW += self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
-        # b_loss = torch.inner(self.boundary_weights, 
-        # NOTE: leaving boundary conditions blank
-        # TODO: boundary conditions&implement
-        return L_PW # + b_loss
+        return L_PW 
     
     def loss_D(self):
         '''
@@ -402,17 +403,18 @@ class PINN_GAN(nn.Module):
                 if self.no_enable:
                     self.optimizer.zero_grad()
                     loss_G = self.loss_plain()
-                else:
+                if self.enable_GAN:
                     self.optimizer_G.zero_grad()
                     loss_G = self.loss_G()
-                loss_G.backward(retain_graph=True)
-                if self.enable_PW == True:
+                if self.no_enable or self.enable_GAN:
+                    loss_G.backward(retain_graph=True)
+                if self.enable_PW:
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
                     loss_PW.backward(retain_graph=True)
                 if self.no_enable:
                     self.optimizer.step()
-                else:
+                if self.enable_GAN:
                     self.optimizer_G.step()
                 # weight updates
                 if self.enable_PW == True:
@@ -420,12 +422,15 @@ class PINN_GAN(nn.Module):
                     rho = self.weight_update(self.f_pred)
                     self.rho_values.append(rho)
                     self.loss_values["Pointwise"].append(loss_PW.detach().numpy())
-                self.loss_values["Generator"].append(loss_G.detach().numpy())   
-            if self.enable_GAN == True:  
+                if self.no_enable or self.enable_GAN:
+                    self.loss_values["Generator"].append(loss_G.detach().numpy())   
+            if self.enable_GAN:  
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
             if epoch % 100 == 0:
-                print(f'Epoch: {epoch}, Loss_G: {loss_G.item()}')
+                print(f'Epoch: {epoch}')
+                if self.no_enable or self.enable_GAN:
+                    print(f'Loss_G: {loss_G.item()}')
                 if self.enable_GAN:
                     print(f'Loss_D: {loss_Discr.item()}')
                 if self.enable_PW:
