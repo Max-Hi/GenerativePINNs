@@ -104,7 +104,7 @@ class weighted_MSELoss(nn.Module):
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
-        
+        for any initial / boundary conditions: pass None if they are not needed.
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
         X_f: the collocation points with time, size (Nf, dim(X)+1)
@@ -157,22 +157,28 @@ class PINN_GAN(nn.Module):
         self.ub = torch.tensor(boundary[1:2, :].T)
         
         # Sizes
-        self.layers_D = layers_D
+        if enable_GAN:
+            self.layers_D = layers_D
         self.layers_G = layers_G
         
         self.generator = Generator(self.layers_G, info_for_error=(self.x_f.shape[1],self.y_t.shape[1]))
-        self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
-        
-        # Optimizer
-        self.optimizer_G = adam.Adam(self.generator.parameters(), lr=lr[0])
-        self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[1])
-        self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[0])
+        if enable_GAN:
+            self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
         
         # options
         self.enable_GAN = enable_GAN
         self.enable_PW = enable_PW
         self.dynamic_lr = dynamic_lr
-    
+        
+        # Optimizer
+        if self.enable_GAN:
+            self.optimizer_G = adam.Adam(self.generator.parameters(), lr=lr[0])
+            self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[2])
+        if self.enable_PW:
+            self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[1])
+        if not self.enable_GAN and not self.enable_PW:
+            self.optimizer = adam.Adam(self.generator.parameters(), lr=lr[0])
+            
     def save(self, epoch, n_critic):
         checkpoint = {
             "generator_model_state_dict": self.generator.model.state_dict(),
@@ -181,6 +187,8 @@ class PINN_GAN(nn.Module):
             "generator_optimizer_state_dict": self.optimizer_G.state_dict(),
             "discriminator_optimizer_state_dict": self.optimizer_D.state_dict(),
             "pointwise_optimizer_state_dict": self.optimizer_PW.state_dict(),
+            "regular_optimizer_state_dict": self.optimizer.state_dict(),
+            "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW},
             "epoch": epoch,
             "rho_values": self.rho_values,
             "loss_values": self.loss_values,
@@ -190,13 +198,19 @@ class PINN_GAN(nn.Module):
     
     def load(self):
         checkpoint = torch.load("model_checkpoint.pth")
+        self.enable_GAN = checkpoint["activations"]["GAN"]
+        self.enable_PW = checkpoint["activations"]["PW"]
         self.generator.model.load_state_dict(checkpoint["generator_model_state_dict"])
-        self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
-        self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
+        if self.enable_GAN:
+            self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
+            self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
         self.optimizer_G.load_state_dict(checkpoint["generator_optimizer_state_dict"])
-        self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
-        self.domain_weights = checkpoint["weights"][0]
-        self.boundary_weights = checkpoint["weights"][1:]
+        if self.enable_PW:
+            self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
+            self.domain_weights = checkpoint["weights"][0]
+            self.boundary_weights = checkpoint["weights"][1:]
+        if not self.enable_GAN and not self.enable_PW:
+            self.optimizer.load_state_dict(checkpoint["regular_optimizer_state_dict"])
         epoch = checkpoint["epoch"]
         n_critic = checkpoint["n_critic"]
         
@@ -323,7 +337,7 @@ class PINN_GAN(nn.Module):
         # NOTE: 
         L_T = self.loss_T()
 
-        return L_D #self.lambdas[1]*L_T + L_D
+        return self.lambdas[1]*L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -362,6 +376,7 @@ class PINN_GAN(nn.Module):
 
     def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
+        self.no_enable = not self.enable_GAN and not self.enable_PW
         if len(grid) == 2:
             X, T = grid
         elif len(grid) == 3:
@@ -383,15 +398,21 @@ class PINN_GAN(nn.Module):
                 loss_Discr = self.loss_D()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
-                self.optimizer_G.zero_grad()
-                
-                loss_G = self.loss_G()
+                if self.no_enable:
+                    self.optimizer.zero_grad()
+                    loss_G = self.loss_plain()
+                else:
+                    self.optimizer_G.zero_grad()
+                    loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
                 if self.enable_PW == True:
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
                     loss_PW.backward(retain_graph=True)
-                self.optimizer_G.step()
+                if self.no_enable:
+                    self.optimizer.step()
+                else:
+                    self.optimizer_G.step()
                 # weight updates
                 if self.enable_PW == True:
                     self.optimizer_PW.step()
