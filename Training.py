@@ -82,7 +82,7 @@ match pde:
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                    enable_GAN = False, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lambdas = [1,1], lr = (1e-3, 1e-6, 5e-6), e = [5e-4]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
         pass
@@ -97,7 +97,7 @@ match pde:
     case _:
         print("pde not recognised")
 start_time = time.time()         
-model.train(6500, grid, X_star, Y_star)
+model.train(3000, grid, X_star, Y_star)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -141,7 +141,11 @@ match pde:
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
 
     case "heat":
-        pass
+        # Predictions
+        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+        
+        print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
+        
     case "poisson":
         pass
     case "poissonHD":

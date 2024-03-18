@@ -49,14 +49,15 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     #     ]
     # }
     # mpl.rcParams.update(pgf_with_latex)
-    fig, _ = plt.subplots(nrows=1, ncols = 2, figsize = (10, 8))
+    fig = plt.figure(figsize=(10, 8))
+    gs0 = gridspec.GridSpec(2, 1)
+    gs0.update(top=1-0.06, bottom=0.06, left=0.15, right=0.85, wspace=5)
+    
     # error_u = np.linalg.norm(output_vec-ground_truth)
     U_pred = griddata(X_star, output_vec.flatten(), (X, T), method = "cubic")
     U_actual = griddata(X_star, ground_truth.flatten(), (X, T), method = "cubic")
-    gs0 = gridspec.GridSpec(2, 1)
-    gs0.update(top=1-0.06, bottom=0.06, left=0.15, right=0.85, wspace=5)
-    ax = plt.subplot(gs0[0, :])
     
+    ax = plt.subplot(gs0[0, :])
     h = ax.imshow(U_pred.T, interpolation='nearest', cmap='rainbow', 
                   extent=[T.min(), T.max(), X.min(), X.max()], 
                   origin='lower', aspect='auto')
@@ -79,12 +80,17 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
 def plot_loss(loss_history, filename):
     import seaborn as sns
     """loss_history: dictionary"""
-    epoch = loss_history["epoch"]
+    epoch = list(range(1, len(loss_history["Generator"])+1))
+    # if epoch in loss_history.keys():
+    #     epoch = loss_history["epoch"]
+    # else:
+    #     epoch = list(range(1, len(loss_history["Generator"])))
 
     plt.figure(figsize=(8, 6))
     for label in loss_history.keys():
         if label != "epoch" :
-            sns.lineplot(x=epoch, y=loss_history[label], label = label)
+            y = np.array(loss_history[label]).flatten()
+            sns.lineplot(x=epoch, y=y, label = label)
 
     plt.title('Loss Descent Over Training')
     plt.xlabel('epochs')

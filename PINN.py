@@ -1,4 +1,5 @@
 # import modules
+import os
 import numpy as np
 import sys
 from tqdm import tqdm
@@ -11,7 +12,7 @@ import torch
 import torch.nn as nn
 from torch.optim import adam
 
-from utils.plot import plot_with_ground_truth
+from utils.plot import plot_with_ground_truth, plot_loss
 
 # set random seeds for reproducability
 np.random.seed(42)
@@ -102,7 +103,10 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, 
+                 layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, 
+                 dynamic_lr = False, model_name: str="", 
+                 lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
         
         X0: T=0, initial condition, randomly drawn from the domain
@@ -131,7 +135,7 @@ class PINN_GAN(nn.Module):
         
         # Arrays for interesting values
         self.rho_values = []
-        self.loss_values = {"Generator": [], "Discriminator": [], "Pointwise": []}
+        self.loss_values = {"Generator": [], "Discriminator": [], "Pointwise": [], "epoch": []}
         
         # Initial Data
         if X0 is not None:
@@ -188,8 +192,15 @@ class PINN_GAN(nn.Module):
         }
         torch.save(checkpoint, "Saves/"+self.name+"_"+str(epoch)+".pth")
     
-    def load(self):
-        checkpoint = torch.load("model_checkpoint.pth")
+    def load(self, checkpoint_path):
+        if checkpoint_path is None:
+            print("No checkpoint path given. Aborting loading.")
+            return
+        elif os.path.isfile(checkpoint_path) == False:
+            print("No checkpoint found at given path. Aborting loading.")
+            return
+        
+        checkpoint = torch.load(checkpoint_path)
         self.generator.model.load_state_dict(checkpoint["generator_model_state_dict"])
         self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
         self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
@@ -197,11 +208,12 @@ class PINN_GAN(nn.Module):
         self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
         self.domain_weights = checkpoint["weights"][0]
         self.boundary_weights = checkpoint["weights"][1:]
+        self.loss_values = checkpoint["loss_values"]
         epoch = checkpoint["epoch"]
         n_critic = checkpoint["n_critic"]
         
-        epoch_stop = int(input("currently at epoch {epoch}. Train till epoch: "))
-        self.train(epoch_stop, epoch, n_critic)
+        # epoch_stop = int(input("currently at epoch {epoch}. Train till epoch: "))
+        # self.train(epoch_stop, epoch, n_critic)
     
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
@@ -360,22 +372,16 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1):
-        """X, T: extra grid data for ground truth solution. passed for plotting. """
-        if len(grid) == 2:
-            X, T = grid
-        elif len(grid) == 3:
-            X, T, _ = grid #NOTE: visualisation will be less meaningfull
-        else:
-            print(f"grid has unexpected length {len(grid)}. Expect errors")
+    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1, visualize = True):
+        # check data type
         if type(y_star)==list:
             print("Using first component of y_star for error")
             y_star = y_star[0]
         
         # Training
-
         for epoch in tqdm(range(start_epoch, epochs)):
             # TODO done?
+            self.loss_values["epoch"].append(epoch+1)
             # self.y0_pred = self.net_y(self.x0)
             self.f_pred = self.net_f(self.x_f)
             if self.enable_GAN == True:
@@ -413,9 +419,8 @@ class PINN_GAN(nn.Module):
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                if X_star.shape[1] == 2:#TODO dimensionality
-                    plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
-                    
+                # self.plot_with_ground_truth() # visualize the predicted plot
+                
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     
@@ -429,12 +434,45 @@ class PINN_GAN(nn.Module):
                         self.save(epoch, n_critic)
                     break
                 
+        if visualize == True:
+            self.plot_loss()
+            self.plot_with_ground_truth(X_star, y_star, y_pred, grid)
+                
     def predict(self, X_star):
         '''
         y_star = self.generator.forward(X_star)
         f_star = self.net_f(X_star) '''
         y_star, f_star = self.forward(X_star)
         return y_star.detach().numpy(), f_star.detach().numpy()
+    
+    def plot_loss(self):
+        plot_loss(self.loss_values, filename = "Figures/loss_history_" + self.name + '.png')
+        
+    def plot_with_ground_truth(self, X_star, y_star, y_pred, grid):
+        """X, T: extra grid data for ground truth solution. passed for plotting. """
+        if len(grid) == 2:
+            X, T = grid
+            plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "Figures/heat_map_" + self.name+".png") # TODO y_star dimensionality
+        elif len(grid) == 3:
+            X1, X2, _ = grid #NOTE: visualisation will be less meaningfull
+            nX1, nX2, nT = X1.shape
+            # nPixels = X1.shape[0]*X1.shape[1]
+            for t in range(0, nT, 10):
+                x1 = np.linspace(self.lb[0], self.ub[0], nX1, endpoint = True)[None, :]
+                x2 = np.linspace(self.lb[1], self.ub[1], nX2, endpoint = True)[None, :]
+
+                x1, x2 =np.meshgrid(x1, x2)
+                x_star_m = np.hstack((x1.flatten()[:, None], x2.flatten()[:, None]))
+                y_pred_m = y_pred.reshape(X1.shape)[:,:,t]
+                y_star_m = y_star.reshape(X1.shape)[:,:,t]
+                plot_with_ground_truth(y_pred_m, x_star_m, x1, x2, y_star_m, ground_truth_ref=False, 
+                                       ground_truth_refpts=[], filename = "Figures/heat_map_" + self.name + "_" + str(t) +".png") # TODO y_star dimensionality
+        else:
+            print(f"grid has unexpected length {len(grid)}. Expect errors")
+            
+        
+                
+        
 
 
 
