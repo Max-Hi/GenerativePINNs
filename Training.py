@@ -193,7 +193,11 @@ match pde:
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
 
     case "heat":
-        pass
+        # Predictions
+        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+        
+        print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
+        
     case "poisson":
         y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
         
