@@ -104,9 +104,9 @@ class weighted_MSELoss(nn.Module):
     
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, 
-                 layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, 
+                 layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, 
                  dynamic_lr = False, model_name: str="", 
-                 lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
+                 lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4]):
         """
         for any initial / boundary conditions: pass None if they are not needed.
         X0: T=0, initial condition, randomly drawn from the domain
@@ -183,6 +183,9 @@ class PINN_GAN(nn.Module):
         if not self.enable_GAN and not self.enable_PW:
             self.optimizer = adam.Adam(self.generator.parameters(), lr=lr[0])
             
+        # plot during training
+        self.intermediary_pictures = intermediary_pictures
+            
     def save(self, epoch, n_critic):
         checkpoint = {
             "generator_model_state_dict": self.generator.model.state_dict(),
@@ -207,7 +210,9 @@ class PINN_GAN(nn.Module):
         elif os.path.isfile(checkpoint_path) == False:
             print("No checkpoint found at given path. Aborting loading.")
             return
-        
+        else:
+            print("model is loading...Done.")
+            
         checkpoint = torch.load(checkpoint_path)
         self.generator.model.load_state_dict(checkpoint["generator_model_state_dict"])
         if self.enable_GAN:
@@ -220,6 +225,7 @@ class PINN_GAN(nn.Module):
             self.boundary_weights = checkpoint["weights"][1:]
         if not self.enable_GAN and not self.enable_PW:
             self.optimizer.load_state_dict(checkpoint["regular_optimizer_state_dict"])
+        self.loss_values = checkpoint["loss_values"]
         epoch = checkpoint["epoch"]
         n_critic = checkpoint["n_critic"]
         
@@ -452,7 +458,8 @@ class PINN_GAN(nn.Module):
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                # self.plot_with_ground_truth() # visualize the predicted plot
+                if self.intermediary_pictures:
+                    self.plot_with_ground_truth(X_star, y_star, y_pred, grid)
                 
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))

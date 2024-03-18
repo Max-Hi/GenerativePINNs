@@ -2,7 +2,6 @@ import scipy
 import torch
 from PDE_PINNs import Heat_PINN_GAN
 from data_structuring import structure_data
-from utils.plot import plot_with_ground_truth, plot_loss
 
 # Hyperparameters
 noise = 0.0        
@@ -29,9 +28,8 @@ layers_G[0] = 3
 layers_G[-1] = 1
 layers_D[0] = 4
 model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-          layers_G= layers_G, layers_D = layers_D, \
-            enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
-                lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-6], q = [10e-4]+[5e-5])
+                 layers_G= layers_G, layers_D = layers_D, enable_PW=True, lr = (1e-3, 1e-3, 5e-3), \
+                model_name= model_name)
 model.load("Trained model/heat_3615.pth") # load
 model.plot_loss()
 y_pred, _ = model.predict(torch.tensor(X_star, requires_grad=True))

@@ -118,7 +118,9 @@ class Schroedinger_PINN_GAN(PINN_GAN):
         return boundaries
       
 class Heat_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], 
+                 intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, 
+                 model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "heat"+model_name
