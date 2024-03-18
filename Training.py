@@ -21,10 +21,11 @@ noise = 0.0
 N0 = 50 # number of data for initial samples
 N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
+N_exact = 40 # number of data points that are passed with their exact solutions
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
-layers_D = [3, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
@@ -33,12 +34,7 @@ pde = questionary.select("Which pde do you want to choose?", choices=["burgers",
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
 
 # structure data
-grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f)
-for thing in [grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star]:
-    try:
-        print(thing.shape)
-    except Exception as e:
-        print(e)
+grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f, N_exact)
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
@@ -55,35 +51,49 @@ if model_name != "":
 
 match pde:
     case "schroedinger":
+        layers_G[0] = 2
+        layers_G[-1] = 2
+        layers_D[0] = 4
         model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, \
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
                         lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-4, 1e-4, 1e-4], q = [10e-4]+[5e-3, 5e-3, 5e-3])
     case "burgers":
+        layers_G[0] = 2
+        layers_G[-1] = 1
+        layers_D[0] = 3
         nu = 1e-2/np.pi 
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu, \
-                        lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, nu=nu, \
+                        lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
+        layers_G[0] = 3
+        layers_G[-1] = 1
+        layers_D[0] = 4
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, \
-                        lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-6], q = [10e-4]+[5e-5])
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                        lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[5e-6], q = [10e-4]+[5e-5])
     case "poisson":
+        layers_G[0] = 2
+        layers_G[-1] = 1
+        layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, \
-                        lr = (1e-3, 1e-6, 5e-6), e = [5e-4]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, \
+                        lambdas = [1,1], lr = (1e-3, 1e-6, 5e-6), e = [5e-4]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
         pass
     case "helmholtz":
-        k = 1
+        layers_G[0] = 2
+        layers_G[-1] = 1
+        layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, k=k, \
-                        lr = (1e-3, 1e-5, 5e-5), e = [5e-4]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
+                        lambdas = [200,1], lr = (1e-3, 1e-5, 5e-5), e = [5e-4]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
         print("pde not recognised")
 start_time = time.time()         

@@ -104,7 +104,7 @@ class weighted_MSELoss(nn.Module):
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
-        
+        for any initial / boundary conditions: pass None if they are not needed.
         X0: T=0, initial condition, randomly drawn from the domain
         Y0: T=0, initial condition, given (u0, v0)
         X_f: the collocation points with time, size (Nf, dim(X)+1)
@@ -120,7 +120,7 @@ class PINN_GAN(nn.Module):
         """
         super().__init__()
 
-        # Hyperparameters
+       # Hyperparameters
         self.q = q
         self.lambdas = lambdas
         self.e = e  # Hyperparameter for PW update
@@ -153,28 +153,32 @@ class PINN_GAN(nn.Module):
         self.y_t = torch.tensor(Y_t)
         
         # Bounds
-        boundary = torch.tensor(boundary)
-        boundary = boundary.transpose(0,1)
-        self.lb = torch.tensor(boundary[:, 0:1])
-        self.ub = torch.tensor(boundary[:, 1:2])
+        self.lb = torch.tensor(boundary[0:1, :].T)
+        self.ub = torch.tensor(boundary[1:2, :].T)
         
         # Sizes
-        self.layers_D = layers_D
+        if enable_GAN:
+            self.layers_D = layers_D
         self.layers_G = layers_G
         
         self.generator = Generator(self.layers_G, info_for_error=(self.x_f.shape[1],self.y_t.shape[1]))
-        self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
-        
-        # Optimizer
-        self.optimizer_G = adam.Adam(self.generator.parameters(), lr=lr[0])
-        self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[1])
-        self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[0])
+        if enable_GAN:
+            self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
         
         # options
         self.enable_GAN = enable_GAN
         self.enable_PW = enable_PW
         self.dynamic_lr = dynamic_lr
-    
+        
+        # Optimizer
+        if self.enable_GAN:
+            self.optimizer_G = adam.Adam(self.generator.parameters(), lr=lr[0])
+            self.optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr[2])
+        if self.enable_PW:
+            self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[1])
+        if not self.enable_GAN and not self.enable_PW:
+            self.optimizer = adam.Adam(self.generator.parameters(), lr=lr[0])
+            
     def save(self, epoch, n_critic):
         checkpoint = {
             "generator_model_state_dict": self.generator.model.state_dict(),
@@ -183,6 +187,8 @@ class PINN_GAN(nn.Module):
             "generator_optimizer_state_dict": self.optimizer_G.state_dict(),
             "discriminator_optimizer_state_dict": self.optimizer_D.state_dict(),
             "pointwise_optimizer_state_dict": self.optimizer_PW.state_dict(),
+            "regular_optimizer_state_dict": self.optimizer.state_dict(),
+            "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW},
             "epoch": epoch,
             "rho_values": self.rho_values,
             "loss_values": self.loss_values,
@@ -192,13 +198,19 @@ class PINN_GAN(nn.Module):
     
     def load(self):
         checkpoint = torch.load("model_checkpoint.pth")
+        self.enable_GAN = checkpoint["activations"]["GAN"]
+        self.enable_PW = checkpoint["activations"]["PW"]
         self.generator.model.load_state_dict(checkpoint["generator_model_state_dict"])
-        self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
-        self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
+        if self.enable_GAN:
+            self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
+            self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
         self.optimizer_G.load_state_dict(checkpoint["generator_optimizer_state_dict"])
-        self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
-        self.domain_weights = checkpoint["weights"][0]
-        self.boundary_weights = checkpoint["weights"][1:]
+        if self.enable_PW:
+            self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
+            self.domain_weights = checkpoint["weights"][0]
+            self.boundary_weights = checkpoint["weights"][1:]
+        if not self.enable_GAN and not self.enable_PW:
+            self.optimizer.load_state_dict(checkpoint["regular_optimizer_state_dict"])
         epoch = checkpoint["epoch"]
         n_critic = checkpoint["n_critic"]
         
@@ -295,6 +307,19 @@ class PINN_GAN(nn.Module):
         
         return loss(self.y_t_pred, self.y_t)
     
+    def loss_plain(self):
+        loss = nn.MSELoss()
+        
+        L_T = self.loss_T()
+        
+        y_f = self.net_f(self.x_f)
+        L = loss(y_f, torch.zeros_like(y_f))
+        
+        for index, boundary in enumerate(self.boundary()):
+            L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary))
+        
+        return self.lambdas[1] * L_T + L
+    
     def loss_G(self):
         ''' 
         input dim for G: 
@@ -308,7 +333,7 @@ class PINN_GAN(nn.Module):
         
         input_D = torch.concat((self.x_f, self.y_f_pred), 1)
         D_input = self.discriminator.forward(input_D)
-        L_D = loss_l1(torch.zeros_like(D_input), 
+        L_D = loss_l1(torch.ones_like(D_input), 
                     D_input)
         # NOTE: 
         L_T = self.loss_T()
@@ -350,8 +375,9 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
-    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 2):
+    def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
+        self.no_enable = not self.enable_GAN and not self.enable_PW
         if len(grid) == 2:
             X, T = grid
         elif len(grid) == 3:
@@ -373,15 +399,21 @@ class PINN_GAN(nn.Module):
                 loss_Discr = self.loss_D()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
-                self.optimizer_G.zero_grad()
-                
-                loss_G = self.loss_G()
+                if self.no_enable:
+                    self.optimizer.zero_grad()
+                    loss_G = self.loss_plain()
+                else:
+                    self.optimizer_G.zero_grad()
+                    loss_G = self.loss_G()
                 loss_G.backward(retain_graph=True)
                 if self.enable_PW == True:
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
                     loss_PW.backward(retain_graph=True)
-                self.optimizer_G.step()
+                if self.no_enable:
+                    self.optimizer.step()
+                else:
+                    self.optimizer_G.step()
                 # weight updates
                 if self.enable_PW == True:
                     self.optimizer_PW.step()
@@ -393,25 +425,31 @@ class PINN_GAN(nn.Module):
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
             if epoch % 100 == 0:
-                print('Epoch: %d, Loss_G: %.3e, Loss_D: %.3e' % (epoch, loss_G.item(), loss_Discr.item()))
-                print(f"rho: {rho}")
+                print(f'Epoch: {epoch}, Loss_G: {loss_G.item()}')
+                if self.enable_GAN:
+                    print(f'Loss_D: {loss_Discr.item()}')
+                if self.enable_PW:
+                    print(f"rho: {rho}")
+                    print(f"PW loss: {loss_PW}")
+                print(f"Exact training loss: {self.loss_T()}, boundary loss: {list(map(lambda x: float(torch.sum(x**2).detach().numpy()),self.boundary()))}")
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
                 
-                print(X_star.shape[1])
                 if X_star.shape[1] == 2:#TODO dimensionality
                     plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
+                    
                 # Error
                 print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
-            if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
-                print("early stopping")
-                if self.create_saves:
-                    self.save(epoch, n_critic)
-                break
+            if self.enable_PW:
+                if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
+                    print("early stopping")
+                    if self.create_saves:
+                        self.save(epoch, n_critic)
+                    break
                 
     def predict(self, X_star):
         '''

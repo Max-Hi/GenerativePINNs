@@ -118,6 +118,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     X_star = np.hstack((X1.flatten()[:,None], X2.flatten()[:,None])) # for prediction
     Y_star = Exact.flatten()[:,None] # for prediction as ground truth
     
+    
     # No initial data so turn to boundary data
     idx1 = np.random.choice(np.where(X_star[:,0] == lb[0])[0], N_b//4, replace=False)
     idx2 = np.random.choice(np.where(X_star[:,0] == ub[0])[0], N_b//4, replace=False)
@@ -142,7 +143,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
 def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     # bounds of data
     lb = np.array([0, 0]) # lower bound for [x1, x2]
-    ub = np.array([1, 1]) # upper bound for [x1, x2]
+    ub = np.array([np.pi, np.pi]) # upper bound for [x1, x2]
     boundary = np.vstack((lb, ub))
     
     x1 = data['x1'].flatten()[:,None]
