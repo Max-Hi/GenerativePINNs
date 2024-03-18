@@ -323,7 +323,7 @@ class PINN_GAN(nn.Module):
         for index, boundary in enumerate(self.boundary()):
             L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary))
         
-        return L # self.lambdas[1] * L_T + L
+        return self.lambdas[1] * L_T + L
     
     def loss_G(self):
         ''' 
