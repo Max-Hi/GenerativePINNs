@@ -20,11 +20,11 @@ torch.manual_seed(42)
 
 
 class Schroedinger_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         
         if model_name!="":
             model_name = "schroedinger"+model_name
-        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)
+        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)
         
         n_boundaries = [X0.shape[0]]+[X_lb.shape[0]]*2
         self.number_collocation_points = self.x_f.shape[0]
@@ -68,8 +68,8 @@ class Schroedinger_PINN_GAN(PINN_GAN):
             # Store the computed second derivative in the placeholder tensor
             d2y_dx1_2[:, i] = d2y_dx1_2_i      
 
-        f_u = u+1#Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
-        f_v = v+1#Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
+        f_u = Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
+        f_v = Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
@@ -113,16 +113,16 @@ class Schroedinger_PINN_GAN(PINN_GAN):
                     # Handle the case where the gradient is None (if allow_unused=True)
                     Jacobian_ub[:, i, j] = torch.zeros(X_ub.shape[0])
         
-        boundaries = [y+1, y_lb+1, y_ub+1]#y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]] #-2/torch.cosh(X)
+        boundaries = [-2/torch.cosh(X), y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]] #
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
       
 class Heat_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "heat"+model_name
-        super(Heat_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)   
+        super(Heat_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)   
 
         n_boundaries = [X0.shape[0]]
         self.number_collocation_points = self.x_f.shape[0]
@@ -188,11 +188,11 @@ class Heat_PINN_GAN(PINN_GAN):
         return boundaries
 
 class Poisson_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "poisson"+model_name
-        super(Poisson_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super(Poisson_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         n_boundaries = [self.x_lb[0].shape[0]]*2+[self.x_lb[1].shape[0]]*2
         self.number_collocation_points = self.x_f.shape[0]
@@ -232,7 +232,8 @@ class Poisson_PINN_GAN(PINN_GAN):
             d2y_dx2_2[:, i] = d2y_dx2_2_i   
 
         # f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(torch.pi*X[:,0])*torch.sin(torch.pi*X[:,1])
-        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(X[:,0])*torch.sin(X[:,1])
+        f = d2y_dx2_2 + d2y_dx1_2 + torch.sin(X[:,0:1])*torch.sin(X[:,1:2])
+        # print(">>>>>>>>>>>>>>>>>>", f.shape, float(torch.sum(f)))
         return f.to(torch.float32)
 
     def boundary(self):
@@ -247,14 +248,23 @@ class Poisson_PINN_GAN(PINN_GAN):
         
         boundaries = [y1_lb, y1_ub, y2_lb, y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
+        
+        print("#################################")
+        print("boundaries")
+        for b in boundaries:
+            #print(b)
+            print("size: ", b.shape)
+            print("in sum: ", torch.sum(b))
+        print("#################################")
+        
         return boundaries
 
 class PoissonHD_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "poissonhd"+model_name
-        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q) 
+        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q) 
         
         n_boundaries = []
         for x in self.x_lb:
@@ -309,10 +319,10 @@ class PoissonHD_PINN_GAN(PINN_GAN):
         return boundaries
 
 class Helmholtz_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         if model_name!="":
             model_name = "holmholtz"+model_name
-        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, intermediary_pictures, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         self.k = k
         
@@ -340,7 +350,7 @@ class Helmholtz_PINN_GAN(PINN_GAN):
             d2y_dx1_2_i = torch.autograd.grad(dy_dx1, X, grad_outputs=torch.ones_like(dy_dx1), create_graph=True)[0][:, 0]
             
             # Store the computed second derivative in the placeholder tensor
-            d2y_dx1_2[:, i] = d2y_dx1_2_i      
+            d2y_dx1_2[:, i] = d2y_dx1_2_i
 
         d2y_dx2_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
@@ -380,16 +390,24 @@ class Helmholtz_PINN_GAN(PINN_GAN):
         print("sin(x2ub): ", torch.sin(self.k*X2_ub[:,0]))
         print("y2_ub: ",y2_ub)
         '''
-        boundaries = [torch.sin(self.k*X1_lb[:,0])-y1_lb,torch.sin(self.k*X1_ub[:,0])-y1_ub,torch.sin(self.k*X2_lb[:,0])-y2_lb,torch.sin(self.k*X2_ub[:,0])-y2_ub]
+        # print(y1_lb.shape, X1_lb[:,0].shape)
+        boundaries = [torch.sin(self.k*X1_lb[:,0:1])-y1_lb,torch.sin(self.k*X1_ub[:,0:1])-y1_ub,torch.sin(self.k*X2_lb[:,0:1])-y2_lb,torch.sin(self.k*X2_ub[:,0:1])-y2_ub]
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
+        print("#################################")
+        print("boundaries")
+        for b in boundaries:
+            #print(b)
+            print("size: ", b.shape)
+            print("in sum: ", torch.sum(b))
+        print("#################################")
         return boundaries
     
 class Burgers_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1), nu: float=0.01/np.pi):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1), nu: float=0.01/np.pi):
     
         if model_name!="":
             model_name = "burgers"+model_name
-        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
         
         self.nu = nu
         
