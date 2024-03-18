@@ -312,10 +312,11 @@ class PINN_GAN(nn.Module):
         
         L_T = self.loss_T()
         
-        L = loss(self.net_f(self.x_f))
+        y_f = self.net_f(self.x_f)
+        L = loss(y_f, torch.zeros_like(y_f))
         
         for index, boundary in enumerate(self.boundary()):
-            L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
+            L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary))
         
         return self.lambdas[1] * L_T + L
     
