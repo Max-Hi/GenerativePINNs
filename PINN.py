@@ -293,6 +293,18 @@ class PINN_GAN(nn.Module):
         
         return loss(self.y_t_pred, self.y_t)
     
+    def loss_plain(self):
+        loss = nn.MSELoss()
+        
+        L_T = self.loss_T()
+        
+        L = loss(self.net_f(self.x_f))
+        
+        for index, boundary in enumerate(self.boundary()):
+            L += self.lambdas[0]*loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
+        
+        return self.lambdas[1] * L_T + L
+    
     def loss_G(self):
         ''' 
         input dim for G: 
@@ -311,7 +323,7 @@ class PINN_GAN(nn.Module):
         # NOTE: 
         L_T = self.loss_T()
 
-        return self.lambdas[1]*L_T + L_D
+        return L_D #self.lambdas[1]*L_T + L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components

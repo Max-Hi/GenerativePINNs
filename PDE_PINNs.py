@@ -68,8 +68,8 @@ class Schroedinger_PINN_GAN(PINN_GAN):
             # Store the computed second derivative in the placeholder tensor
             d2y_dx1_2[:, i] = d2y_dx1_2_i      
 
-        f_u = Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
-        f_v = Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
+        f_u = u+1#Jacobian[:,0,0:1] + 0.5*d2y_dx1_2[:,0:1] + (u**2 + v**2)*v
+        f_v = v+1#Jacobian[:,1,0:1] - 0.5*d2y_dx1_2[:,1:2] - (u**2 + v**2)*u
         return torch.concat((f_u, f_v),1).to(torch.float32)
 
     def boundary(self):
@@ -113,7 +113,7 @@ class Schroedinger_PINN_GAN(PINN_GAN):
                     # Handle the case where the gradient is None (if allow_unused=True)
                     Jacobian_ub[:, i, j] = torch.zeros(X_ub.shape[0])
         
-        boundaries = [y-2/torch.cosh(X), y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]]
+        boundaries = [y+1, y_lb+1, y_ub+1]#y_lb-y_ub, Jacobian_lb[:,0,:]-Jacobian_ub[:,0,:]] #-2/torch.cosh(X)
         boundaries = list(map(lambda x: x.to(torch.float32),boundaries))
         return boundaries
       
