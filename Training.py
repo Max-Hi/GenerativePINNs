@@ -34,7 +34,11 @@ pde = questionary.select("Which pde do you want to choose?", choices=["burgers",
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
 
 # structure data
-grid, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f, N_exact)
+grid, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, X_star, Y_star = structure_data(pde, data, noise, N0, N_b, N_f, N_exact)
+print("test", u_lb)
+print("test", u_ub)
+
+# NOTE remember to pass the reference data for all points
 
 # get name for saving
 model_name = input("Give your model a name to be saved under. Press Enter without name to not save. ")
@@ -61,12 +65,13 @@ match pde:
     case "burgers":
         layers_G[0] = 2
         layers_G[-1] = 1
-        layers_D[0] = 3
+        layers_D[0] = 4 # NOTE only example now 
         nu = 1e-2/np.pi 
+        print(layers_G)
         # NOTE: added extra X, T for plotting
-        model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
+        model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = False, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu, \
+                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
         layers_G[0] = 3

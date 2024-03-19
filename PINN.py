@@ -102,7 +102,7 @@ class weighted_MSELoss(nn.Module):
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
         for any initial / boundary conditions: pass None if they are not needed.
         X0: T=0, initial condition, randomly drawn from the domain
@@ -133,24 +133,48 @@ class PINN_GAN(nn.Module):
         self.rho_values = []
         self.loss_values = {"Generator": [], "Discriminator": [], "Pointwise": []}
         
+
+        # training points that have values
+        self.x_t = torch.tensor(X_t)
+        self.y_t = torch.tensor(Y_t)
+
+        self.D_input_ref = torch.concat((self.x_t, self.y_t, torch.ones(self.x_t.shape[0], 1)), 1)
+        print(self.D_input_ref.shape)
+        self.G_input_ref = self.x_t
         # Initial Data
         if X0 is not None:
             self.x0 = torch.tensor(X0, requires_grad=True)
         if Y0 is not None:
             self.y0 = torch.tensor(Y0)
-        
+            print(torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1).shape)
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1)))
+            self.G_input_ref = torch.vstack((self.G_input_ref, self.x0))
         # Boundary Data
         if X_lb is not None:
             self.x_lb = torch.tensor(X_lb, requires_grad=True)
+        if u_lb is not None:
+            self.u_lb = torch.tensor(u_lb, requires_grad = True)
+            print(torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1).shape)
+            print(self.x_lb-self.u_lb)
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1)))
+            self.G_input_ref = torch.vstack((self.G_input_ref, self.x_lb))
         if X_ub is not None:
             self.x_ub = torch.tensor(X_ub, requires_grad=True)
+        if u_ub is not None:
+            self.u_ub = torch.tensor(u_ub, requires_grad = True)
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x_ub, self.u_ub, torch.ones(self.x_ub.shape[0], 1)), 1)))
+            self.G_input_ref = torch.vstack((self.G_input_ref, self.x_ub))
+        # exact reference points for D/G input
+        
+        
         
         # Collocation Points
         self.x_f = torch.tensor(X_f, requires_grad=True)
         
-        # training points that have values
-        self.x_t = torch.tensor(X_t)
-        self.y_t = torch.tensor(Y_t)
+
         
         # Bounds
         self.lb = torch.tensor(boundary[0:1, :].T)
@@ -337,9 +361,9 @@ class PINN_GAN(nn.Module):
         self.y_f_pred = self.net_y(self.x_f)
         
         input_D = torch.concat((self.x_f, self.y_f_pred), 1)
-        D_input = self.discriminator.forward(input_D)
-        L_D = loss_l1(torch.ones_like(D_input), 
-                    D_input)
+        D_output = self.discriminator.forward(input_D)
+        L_D = loss_l1(torch.ones_like(D_output), 
+                    D_output)
         # NOTE: 
         L_T = self.loss_T()
 
@@ -348,15 +372,21 @@ class PINN_GAN(nn.Module):
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
         # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
+    
+    def PCS(self, r_k):
+        "physics consistency scores."
+        lambd_val = 1 # hyperparam for tuning
+        return torch.exp(-lambd_val*r_k)
+    
 
     def loss_PW(self):
         
         f_loss = weighted_MSELoss()
         L_PW = f_loss(self.f_pred, torch.zeros_like(self.f_pred), self.domain_weights.to(torch.float32))
-        print("!!!!!! L_PW -> ", L_PW)
+        # print("!!!!!! L_PW -> ", L_PW)
         for index, boundary in enumerate(self.boundary()):
             L = self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
-            print("!!!!!! L_B -> ", L)
+            # print("!!!!!! L_B -> ", L)
             L_PW += L
         return L_PW 
     
@@ -380,6 +410,53 @@ class PINN_GAN(nn.Module):
                 loss(discriminator_T, torch.ones_like(discriminator_T))
         return loss_D
 
+    def loss_G_PI(self):
+        ''' 
+        input dim for G: 
+        (x, t, u, v)
+        possible error of dimensionality noted.
+        '''
+        # TODO: call util.py for point loss
+        loss_l1 = nn.L1Loss()
+        
+
+        L_D = loss_l1(torch.zeros_like(self.D_output_domain), 
+                    self.D_output_domain) + \
+              loss_l1(torch.zeros_like(self.D_output_boundary), 
+                    self.D_output_boundary)
+        # NOTE: 
+        L_T = self.loss_T()
+
+        return self.lambdas[1]*L_T + L_D
+
+        # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
+        # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
+        # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
+
+
+    def loss_D_PI(self):
+        """
+        incorporating physics consistency scores.
+        \cite{PID-GAN}
+        """
+        loss = nn.L1Loss() # NOTE to be fixed as -log
+        self.y_f_pred = self.net_y(self.x_f)
+        self.ref_sol = self.net_y(self.G_input_ref)
+        
+        self.input_D_domain = torch.concat((self.x_f, self.y_f_pred, self.PCS(self.f_pred)), 1)
+        self.input_D_boundary = torch.concat((self.G_input_ref, self.ref_sol, self.PCS(self.ref_sol)), 1)
+        self.D_output_domain = self.discriminator.forward(self.input_D_domain)
+        print(self.D_output_domain.shape)
+        self.D_output_boundary = self.discriminator.forward(self.input_D_boundary)
+        loss_D_PI = loss(self.D_output_domain.squeeze(dim=1), torch.zeros_like(self.D_output_domain).squeeze(dim=1)) +\
+                loss(self.D_output_boundary.squeeze(dim=1), torch.zeros_like(self.D_output_boundary).squeeze(dim=1)) +\
+                loss(self.D_input_ref.squeeze(dim=1), torch.ones_like(self.D_input_ref).squeeze(dim=1))
+                
+
+
+        return loss_D_PI
+
+
     def train(self, epochs, grid, X_star, y_star, start_epoch=0, n_critic = 1):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
         self.no_enable = not self.enable_GAN and not self.enable_PW
@@ -401,7 +478,7 @@ class PINN_GAN(nn.Module):
             self.f_pred = self.net_f(self.x_f)
             if self.enable_GAN:
                 self.optimizer_D.zero_grad()
-                loss_Discr = self.loss_D()
+                loss_Discr = self.loss_D_PI()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
                 if self.no_enable:
@@ -409,7 +486,7 @@ class PINN_GAN(nn.Module):
                     loss_G = self.loss_plain()
                 if self.enable_GAN:
                     self.optimizer_G.zero_grad()
-                    loss_G = self.loss_G()
+                    loss_G = self.loss_G_PI()
                 if self.no_enable or self.enable_GAN:
                     loss_G.backward(retain_graph=True)
                 if self.enable_PW:
@@ -436,7 +513,7 @@ class PINN_GAN(nn.Module):
             if self.enable_GAN:  
                 self.optimizer_D.step()
                 self.loss_values["Discriminator"].append(loss_Discr.detach().numpy())
-            if epoch % 100 == 0:
+            if epoch % 10 == 0:
                 print(f'Epoch: {epoch}')
                 if self.no_enable or self.enable_GAN:
                     print(f'Loss_G: {loss_G.item()}')
@@ -448,12 +525,13 @@ class PINN_GAN(nn.Module):
                 print(f"Exact training loss: {self.loss_T()}, boundary loss: {list(map(lambda x: float(torch.sum(x**2).detach().numpy()),self.boundary()))}")
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
-                
+                print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
+            if epoch % 100 == 0:
                 if X_star.shape[1] == 2:#TODO dimensionality
                     plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
                     
                 # Error
-                print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
+                # print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                     
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
