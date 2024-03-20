@@ -91,6 +91,20 @@ print("-------------------------------------------")
 
 
 # Hyperparameters
+match pde:
+    case "schroedinger":
+        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [4, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "burgers":
+        layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [3, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "heat" | "poisson" | "helmholtz":
+        layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [3, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "poissonHD":
+        pass
+    case _:
+        print("pde not recognised")
 N0 = 50 # number of data for initial samples
 # N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
