@@ -38,10 +38,21 @@ class Generator(nn.Module):
         self.layers = layers_G
         self.info_for_error = info_for_error
         self.model = nn.Sequential()
-        # TODO: baseline structure to be altered: More than fully connected
-        for l in range(0, len(self.layers) - 2):
-            self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
-            self.model.add_module("tanh" + str(l), nn.Tanh())
+        if layers_G[1] == "conv":
+            self.model.add_module("linear0", nn.Linear(self.layers[0], self.layers[2]))
+            self.model.add_module("tanh0", nn.Tanh())
+            self.model.add_module("linear1", nn.Linear(self.layers[2], self.layers[3]))
+            self.model.add_module("tanh1", nn.Tanh())
+            for l in range(2, len(self.layers) - 3):
+                self.model.add_module("conv" + str(l-1), nn.Conv2d(self.layers[l], self.layers[l+1], 5, 1, 3))
+                self.model.add_module("tanh" + str(l-1), nn.Tanh())
+            self.model.add_module("linear" + str(len(self.layers) - 3), nn.Linear(self.layers[-3], self.layers[-2]))
+            self.model.add_module("tanh" + str(len(self.layers) - 3), nn.Tanh())
+            conv_params = layers_G[1]  # Example format: [in_channels, out_channels, kernel_size, stride, padding]
+        else:
+            for l in range(0, len(self.layers) - 2):
+                self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
+                self.model.add_module("tanh" + str(l), nn.Tanh())
         self.model.add_module("linear" + str(len(self.layers) - 2), nn.Linear(self.layers[-2], self.layers[-1]))
     def forward(self, x):
         try:
@@ -75,12 +86,15 @@ class Discriminator(nn.Module):
         self.layers = layers_D
         self.info_for_error = info_for_error
         self.model = nn.Sequential()
-        # TODO: baseline structure to be altered 
-        for l in range(0, len(self.layers) - 1):
-            self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
-            self.model.add_module("tanh" + str(l), nn.Tanh())
-        self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid()) 
-        self.model = self.model.double()
+        if layers_D[1] == "conv":
+            pass
+        else:
+            # TODO: baseline structure to be altered 
+            for l in range(0, len(self.layers) - 1):
+                self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
+                self.model.add_module("tanh" + str(l), nn.Tanh())
+            self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid()) 
+            self.model = self.model.double()
     def forward(self, x):
         try:
             return self.model(x)
@@ -485,13 +499,13 @@ class PINN_GAN(nn.Module):
         return y_star.detach().numpy(), f_star.detach().numpy()
     
     def plot_loss(self):
-        plot_loss(self.loss_values, filename = "Figures/loss_history_" + self.name + '.png')
+        plot_loss(self.loss_values, filename = "Plots/loss_history_" + self.name + '.png')
         
     def plot_with_ground_truth(self, X_star, y_star, y_pred, grid):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
         if len(grid) == 2:
             X, T = grid
-            plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "Figures/heat_map_" + self.name+".png") # TODO y_star dimensionality
+            plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/heat_map_" + self.name+".png") # TODO y_star dimensionality
         elif len(grid) == 3:
             X1, X2, _ = grid #NOTE: visualisation will be less meaningfull
             nX1, nX2, nT = X1.shape
@@ -505,7 +519,7 @@ class PINN_GAN(nn.Module):
                 y_pred_m = y_pred.reshape(X1.shape)[:,:,t]
                 y_star_m = y_star.reshape(X1.shape)[:,:,t]
                 plot_with_ground_truth(y_pred_m, x_star_m, x1, x2, y_star_m, ground_truth_ref=False, 
-                                       ground_truth_refpts=[], filename = "Figures/heat_map_" + self.name + "_" + str(t) +".png") # TODO y_star dimensionality
+                                       ground_truth_refpts=[], filename = "Plots/heat_map_" + self.name + "_" + str(t) +".png") # TODO y_star dimensionality
         else:
             print(f"grid has unexpected length {len(grid)}. Expect errors")
             

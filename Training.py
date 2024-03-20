@@ -30,10 +30,14 @@ def parse_arguments():
     parser.add_argument("--lambda2", required=False, type=float, help="Lambda2 for the model.")
     parser.add_argument("-g", "--gan", type=lambda x: (str(x).lower() == 'y'), help="Enable or disable the GAN use.")
     parser.add_argument("-w", "--pointweighting", type=lambda x: (str(x).lower() == 'y'), help="Enable or disable the Point Weighting (PW) use.")
+    parser.add_argument("-a", "--architecture", type=str, help="choose architecture. Should be one of: standard, deep, wide, convolution")
     parser.add_argument("--lr1", required=False, type=float, help="Learning rate 1.")
     parser.add_argument("--lr2", required=False, type=float, help="Learning rate 2.")
     parser.add_argument("--lr3", required=False, type=float, help="Learning rate 3.")
     parser.add_argument("--e-value", dest="e_value", required=False, type=float, help="The boundary between easy and hard to learn points.")
+    parser.add_argument("--noise", dest="noise", required=False, type=float, help="The amount of noise added.")
+    parser.add_argument("--N_exact", dest="N_exact", required=False, type=int, help="The amount of exact solutions used.")
+    parser.add_argument("--N_b", dest="N_b", required=False, type=int, help="The amount of boundary points used.")
 
     # Parsing the arguments
     args = parser.parse_args()
@@ -45,33 +49,46 @@ def parse_arguments():
     lambdas = [args.lambda1 if args.lambda1 is not None else 1, args.lambda2 if args.lambda2 is not None else 1]
     enable_GAN = args.gan if args.gan is not None else True
     enable_PW = args.pointweighting if args.pointweighting is not None else True
+    architecture = args.architecture if args.architecture is not None else "standard"
     lr = (args.lr1 if args.lr1 is not None else 1e-3, args.lr2 if args.lr2 is not None else 1e-3, args.lr3 if args.lr3 is not None else 5e-3)
     e = args.e_value if args.e_value is not None else 5e-4
+    noise = args.noise if args.noise is not None else 0.0
+    N_exact = args.N_exact if args.N_exact is not None else 40
+    N_b = args.N_b if args.N_b is not None else 50
 
 
     # Returning parsed values
-    return pde, model_name, epochs, lambdas, enable_GAN, enable_PW, lr, e
+    return pde, model_name, epochs, lambdas, enable_GAN, enable_PW, architecture, lr, e, noise, N_exact, N_b
 
 if __name__ == "__main__": # only execute when running not when possibly importing from here
-    pde, model_name, epochs, lambdas, enable_GAN, enable_PW, lr, e = parse_arguments()
+    pde, model_name, epochs, lambdas, enable_GAN, enable_PW, architecture, lr, e, noise, N_exact, N_b = parse_arguments()
 
 print("-------------------------------------------")
-print(f"training {model_name} to learn {pde} "+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
+print(f"training {model_name} to learn {pde} "+f"with {architecture} architecture"+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
 print("-------------------------------------------")
 
 
 
 
 # Hyperparameters
-noise = 0.0        
 N0 = 50 # number of data for initial samples
-N_b = 50 # number of data for boundary samples
+# N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
-N_exact = 40 # number of data points that are passed with their exact solutions
+# N_exact = 40 # number of data points that are passed with their exact solutions
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
-layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+match architecture:
+    case "standard":
+        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "deep":
+        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "wide":
+        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "convolution":
+        layers_G, layers_D = [2, "conv", 100, 100, 100, 100, 100, 2], [4, "conv", 100, 100, 100, 100, 100, 1]
 
 if pde == "":
     pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
