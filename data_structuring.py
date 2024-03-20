@@ -20,6 +20,19 @@ def structure_data(pde, data, noise, N0, N_b, N_f, N_exact = 50):
             print("pde not recognised")
 
 
+def add_noise(data, noise):
+    base_sigma = np.abs(data)  
+    
+    # Scale the base noise by the noise level parameter
+    noise = noise * np.random.normal(0, 1, data.shape) * base_sigma
+    
+    # Add the noise to the original data
+    noisy_data = data + noise
+    
+    return noisy_data
+
+
+
 ####################### Data structuring Functions #########################
 
 def structure_data_schroedinger(data, noise, N0, N_b, N_f, N_exact):
@@ -29,7 +42,7 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f, N_exact):
 
     t = data['tt'].flatten()[:,None]
     x = data['x'].flatten()[:,None]
-    Exact = data['uu']
+    Exact = add_noise(data['uu'], noise)
     Exact_h = np.sqrt(np.real(Exact)**2 + np.imag(Exact)**2)
     X, T = np.meshgrid(x,t)
     grid = [X,T]
@@ -78,7 +91,7 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
     t = data['t'].flatten()[:,None]
     x1 = data['x1'].flatten()[:,None]
     x2 = data['x2'].flatten()[:,None]
-    Exact = data['usol']
+    Exact = add_noise(data['usol'], noise)
     X1, X2, T = np.meshgrid(x1, x2, t)
     grid = [X1, X2, T]
     X_star = np.hstack((X1.flatten()[:,None], X2.flatten()[:,None], T.flatten()[:,None])) # for prediction
@@ -102,7 +115,6 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
     X_lb, X_ub = None, None
     
     return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
-    
 
 def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     # bounds of data
@@ -112,7 +124,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     
     x1 = data['x1'].flatten()[:,None]
     x2 = data['x2'].flatten()[:,None]
-    Exact = data['usol']
+    Exact = add_noise(data['usol'], noise)
     X1, X2 = np.meshgrid(x1, x2)
     grid = [X1, X2]
     X_star = np.hstack((X1.flatten()[:,None], X2.flatten()[:,None])) # for prediction
@@ -148,7 +160,7 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     
     x1 = data['x1'].flatten()[:,None]
     x2 = data['x2'].flatten()[:,None]
-    Exact = data['usol']
+    Exact = add_noise(data['usol'], noise)
     X1, X2 = np.meshgrid(x1, x2)
     grid = [X1, X2]
     X_star = np.hstack((X1.flatten()[:,None], X2.flatten()[:,None])) # for prediction
@@ -209,15 +221,13 @@ def structure_data_poissonHD(noise, N_b, N_f, N_exact):
     
     return X_b, Y_b, X_f, X_exact, Y_exact, boundary, X_star, Y_star
 
-    
-
 def structure_data_burgers(data, noise, N0, N_b, N_f, N_exact):
     # input 
     t = data['t'].flatten()[:,None]
     x = data['x'].flatten()[:,None]
     lb = np.array([x.min(), t.min()]) # lower bound for [x, t]
     ub = np.array([x.max(), t.max()]) # upper bound for [x, t]
-    Exact = data['usol'].T
+    Exact = add_noise(data['usol'], noise).T
 
 
     X, T = np.meshgrid(x,t)
