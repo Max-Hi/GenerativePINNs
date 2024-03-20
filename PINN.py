@@ -391,7 +391,10 @@ class PINN_GAN(nn.Module):
         for index, boundary in enumerate(self.boundary()):
             L = self.lambdas[0]*f_loss(boundary, torch.zeros_like(boundary), self.boundary_weights[index].to(torch.float32))
             L_PW += L
-        return L_PW 
+        if self.enable_GAN:
+            return L_PW 
+        else: # now L_T is not being used
+            return L_PW + self.loss_T()
     
     def loss_D(self):
         '''
