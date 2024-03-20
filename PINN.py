@@ -4,6 +4,7 @@ import numpy as np
 import sys
 from tqdm import tqdm
 import pickle
+import json
 # from sklearn.model_selection import train_test_split
 # from scipy.integrate import odeint
 
@@ -491,6 +492,18 @@ class PINN_GAN(nn.Module):
                             pickle.dump(y_pred, f)
                         with open('Saves/loss_history_'+self.name+'.pkl', 'wb') as f:
                             pickle.dump(self.loss_values, f)
+                        metrics = dict()
+                        for loss_name in ["Generator", "Discriminator", "Pointwise",]:
+                            try:
+                                metrics[loss_name] = float(self.loss_values[loss_name][-1])
+                            except IndexError: 
+                                print("not saving the loss for "+loss_name+" as it does not appear to have been used.")
+                        loss = nn.MSELoss()
+                        metrics["f value"] = float(loss(torch.tensor(f_pred), torch.zeros_like(torch.tensor(f_pred))))
+                        metrics["u NRMSE"] = float(torch.sqrt(loss(torch.tensor(y_star), torch.tensor(y_pred))/loss(torch.tensor(y_star),torch.zeros_like(torch.tensor(y_star)))))
+                        metrics["epochs"] = epoch
+                        with open('Saves/metrics_'+self.name+'.pkl', 'wb') as f:
+                            pickle.dump(metrics, f)
                     break
         # if epochs are through
         if not stopped_early:
@@ -499,6 +512,19 @@ class PINN_GAN(nn.Module):
                 pickle.dump(y_pred, f)
             with open('Saves/loss_history_'+self.name+'.pkl', 'wb') as f:
                 pickle.dump(self.loss_values, f)
+            metrics = dict()
+            for loss_name in ["Generator", "Discriminator", "Pointwise",]:
+                try:
+                    metrics[loss_name] = float(self.loss_values[loss_name][-1])
+                except IndexError: 
+                    print("not saving the loss for "+loss_name+" as it does not appear to have been used.")
+            loss = nn.MSELoss()
+            metrics["f value"] = float(loss(torch.tensor(f_pred), torch.zeros_like(torch.tensor(f_pred))))
+            metrics["u NRMSE"] = float(torch.sqrt(loss(torch.tensor(y_star), torch.tensor(y_pred))/loss(torch.tensor(y_star),torch.zeros_like(torch.tensor(y_star)))))
+            metrics["epochs"] = epoch
+            with open('Saves/metrics_'+self.name+'.pkl', 'w') as f:
+                json.dump(metrics, f)
+            
                 
         if visualize:
             self.plot_loss()
