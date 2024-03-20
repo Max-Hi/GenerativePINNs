@@ -64,7 +64,7 @@ if __name__ == "__main__": # only execute when running not when possibly importi
     pde, model_name, epochs, lambdas, enable_GAN, enable_PW, architecture, lr, e, noise, N_exact, N_b = parse_arguments()
 
 print("-------------------------------------------")
-print(f"training {model_name} to learn {pde} "+f"with {architecture} architecture"+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
+print(f"training {model_name} to learn {pde} "+f"with {architecture} architecture "+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
 print("-------------------------------------------")
 
 
@@ -164,7 +164,7 @@ match pde:
     case _:
         print("pde not recognised")
 start_time = time.time()         
-model.train(500, grid, X_star, Y_star)
+model.train(500, grid, X_star, Y_star, visualize=intermediary_pictures)
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -235,7 +235,7 @@ match pde:
     case "helmholtz":
         y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
         
-        mat = torch.load("burgers_pred.pt")
+        mat = torch.load("burgers_pred.pt") # TODO
         
         X, T = grid # TODO if grid has more than two entries ???
 

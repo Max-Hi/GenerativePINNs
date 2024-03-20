@@ -490,7 +490,7 @@ class PINN_GAN(nn.Module):
                         self.save(epoch, n_critic)
                     break
                 
-        if visualize == True:
+        if visualize:
             self.plot_loss()
             self.plot_with_ground_truth(X_star, y_star, y_pred, grid)
                 
