@@ -56,7 +56,8 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f, N_exact):
     boundary = np.vstack((lb, ub))
     X_lb = np.concatenate((lb[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
     X_ub = np.concatenate((ub[0]*np.ones_like(tb, dtype=np.float32), tb), axis=1)
-
+    u_lb = None
+    u_ub = None
     # Training Samples with exact values
 
     idx = np.random.choice(X_star.shape[0], N_exact, replace=False)
@@ -67,7 +68,7 @@ def structure_data_schroedinger(data, noise, N0, N_b, N_f, N_exact):
     # Use the mesh to index into u
     # Y_t = np.hstack((np.real(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None],np.imag(Exact[mesh_idx_x, mesh_idx_t]).flatten()[:,None]))
     
-    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, [u_star, v_star, h_star]
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, u_lb, X_ub, u_ub, boundary, X_star, [u_star, v_star, h_star]
 
 def structure_data_heat(data, noise, N0, N_f, N_exact):
     # bounds of data
@@ -100,8 +101,9 @@ def structure_data_heat(data, noise, N0, N_f, N_exact):
     
     # default values just for compatibility
     X_lb, X_ub = None, None
+    u_lb, u_ub = None, None
     
-    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, u_lb, X_ub, u_ub, boundary, X_star, Y_star
     
 
 def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
@@ -125,7 +127,9 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     idx3 = np.random.choice(np.where(X_star[:,1] == lb[1])[0], N_b//4, replace=False)
     idx4 = np.random.choice(np.where(X_star[:,1] == ub[1])[0], N_b//4, replace=False)
     X_lb = [X_star[idx1,:],X_star[idx3,:]]
+    u_lb = [np.sin(X_star[idx1,:]),np.sin(X_star[idx3,:])]
     X_ub = [X_star[idx2,:],X_star[idx4,:]]
+    u_ub = [np.sin(X_star[idx2,:]),np.sin(X_star[idx4,:])]
     
     # collocation points
     X_f = lb + (ub-lb)*lhs(2, N_f)
@@ -138,7 +142,7 @@ def structure_data_helmholtz(data, noise, N_b, N_f, N_exact):
     # just for correct formating:
     X0, Y0 = None, None
     
-    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, u_lb, X_ub, u_ub, boundary, X_star, Y_star
 
 def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     # bounds of data
@@ -160,9 +164,13 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     idx2 = np.random.choice(np.where(X_star[:,0] == ub[0])[0], N_b//4, replace=False)
     idx3 = np.random.choice(np.where(X_star[:,1] == lb[1])[0], N_b//4, replace=False)
     idx4 = np.random.choice(np.where(X_star[:,1] == ub[1])[0], N_b//4, replace=False)
-    X_lb = [X_star[idx1,:],X_star[idx3,:]] # all 0 at the boundary points so no Y_b recorded
-    X_ub = [X_star[idx2,:],X_star[idx4,:]]
-    
+    X_lb = np.vstack((X_star[idx1,:],X_star[idx3,:]))# all 0 at the boundary points so no Y_b recorded
+    X_ub = np.vstack((X_star[idx2,:],X_star[idx4,:]))
+    print(X_lb.shape)
+
+    u_lb = np.hstack((np.zeros(N_b//4), np.zeros(N_b//4)))[:,None]
+    u_ub = np.hstack((np.zeros(N_b//4), np.zeros(N_b//4)))[:,None]
+    print(u_lb.shape)
     # collocation points
     X_f = lb + (ub-lb)*lhs(2, N_f)
     
@@ -174,9 +182,10 @@ def structure_data_poisson(data, noise, N_b, N_f, N_exact):
     # just for correct formating:
     X0, Y0 = None, None
 
-    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, X_ub, boundary, X_star, Y_star
+    return grid, X0, Y0, X_f, X_exact, Y_exact, X_lb, u_lb, X_ub, u_ub, boundary, X_star, Y_star
 
 def structure_data_poissonHD(noise, N_b, N_f, N_exact):
+    # TODO
     # bounds of data
     lb = np.zeros(10) # lower bound for [x1, x2, x3, ..., x10]
     ub = np.ones(10) # upper bound for [x1, x2, x3, ..., x10]

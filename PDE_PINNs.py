@@ -20,11 +20,11 @@ torch.manual_seed(42)
 
 
 class Schroedinger_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         
         if model_name!="":
             model_name = "schroedinger"+model_name
-        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)
+        super().__init__(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)
         
         n_boundaries = [X0.shape[0]]+[X_lb.shape[0]]*2
         self.number_collocation_points = self.x_f.shape[0]
@@ -41,9 +41,12 @@ class Schroedinger_PINN_GAN(PINN_GAN):
         v = y[:,1:2]
         
         X.requires_grad_(True)
+        X.retain_grad()
+        y.retain_grad()
         Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1])
         for i in range(y.shape[1]):  # Loop over all outputs
-            for j in range(X.shape[1]):  # Loop over all inputs
+            for j in range(X.shape[1]): 
+                # print(X.grad) # Loop over all inputs
                 if X.grad is not None:
                     X.grad.data.zero_()  # Zero out previous gradients; crucial for accurate computation
                 grad_outputs = torch.zeros_like(y[:, i])
@@ -82,6 +85,7 @@ class Schroedinger_PINN_GAN(PINN_GAN):
         y_ub = self.net_y(X_ub)
         
         X_lb.requires_grad_(True)
+
         Jacobian_lb = torch.zeros(X_lb.shape[0], y_lb.shape[1], X_lb.shape[1])
         for i in range(y_lb.shape[1]):  # Loop over all outputs
             for j in range(X_lb.shape[1]):  # Loop over all inputs
@@ -118,11 +122,11 @@ class Schroedinger_PINN_GAN(PINN_GAN):
         return boundaries
       
 class Heat_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "heat"+model_name
-        super(Heat_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)   
+        super(Heat_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)   
 
         n_boundaries = [X0.shape[0]]
         self.number_collocation_points = self.x_f.shape[0]
@@ -137,6 +141,7 @@ class Heat_PINN_GAN(PINN_GAN):
         y = self.net_y(X)
         
         X.requires_grad_(True)
+        X.retain_grad()
         Jacobian = torch.zeros(X.shape[0], y.shape[1], X.shape[1]) # Jacobian[:,i,j:j+1] will create a (:,1) shaped gradient of the ith y entry with regard to the jth x entry.
         for i in range(y.shape[1]):  # Loop over all outputs
             for j in range(X.shape[1]):  # Loop over all inputs
@@ -188,11 +193,11 @@ class Heat_PINN_GAN(PINN_GAN):
         return boundaries
 
 class Poisson_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e=[], q=[], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub,boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e=[], q=[], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "poisson"+model_name
-        super(Poisson_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super(Poisson_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         n_boundaries = [self.x_lb[0].shape[0]]*2+[self.x_lb[1].shape[0]]*2
         self.number_collocation_points = self.x_f.shape[0]
@@ -207,6 +212,7 @@ class Poisson_PINN_GAN(PINN_GAN):
         y = self.net_y(X)
         
         X.requires_grad_(True)
+        X.retain_grad()
         d2y_dx1_2 = torch.zeros(X.shape[0], y.shape[1])
         for i in range(y.shape[1]):  # Loop over each output component of y
             # Compute the first derivative of y[i] with respect to x1
@@ -250,11 +256,11 @@ class Poisson_PINN_GAN(PINN_GAN):
         return boundaries
 
 class PoissonHD_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
     
         if model_name!="":
             model_name = "poissonhd"+model_name
-        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q) 
+        super(PoissonHD_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q) 
         
         n_boundaries = []
         for x in self.x_lb:
@@ -309,10 +315,10 @@ class PoissonHD_PINN_GAN(PINN_GAN):
         return boundaries
 
 class Helmholtz_PINN_GAN(PINN_GAN):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, k, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         if model_name!="":
             model_name = "holmholtz"+model_name
-        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
+        super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G, layers_D, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         self.k = k
         

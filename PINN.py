@@ -42,17 +42,21 @@ class Generator(nn.Module):
             self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
             self.model.add_module("tanh" + str(l), nn.Tanh())
         self.model.add_module("linear" + str(len(self.layers) - 2), nn.Linear(self.layers[-2], self.layers[-1]))
+    
     def forward(self, x):
+        # print(x.shape)
         try:
             return self.model(x)
+        
         except RuntimeError as e:
             print(f"Caught RuntimeError: {e}")
+            
             if self.info_for_error is not None:
-                print(f"It could be that the values in layers_D do not match with the dimensions of the data. The first entry of layers_D should be {self.info_for_error[0]} and is {self.layers[0]}.")
+                print(f"It could be that the values in layers_G do not match with the dimensions of the data. The first entry of layers_D should be {self.info_for_error[0]} and is {self.layers[0]}.")
             else:
-                print("It could be that the values in layers_D do not match with the dimensions of the data.")
+                print("It could be that the values in layers_G do not match with the dimensions of the data.")
             if self.info_for_error is not None:
-                print(f"The last entry of layers_D should be {self.info_for_error[1]} and is {self.layers[-1]}.")
+                print(f"The last entry of layers_G should be {self.info_for_error[1]} and is {self.layers[-1]}.")
             sys.exit(1)
 
 class Generator_LSTM(nn.Module):
@@ -82,6 +86,7 @@ class Discriminator(nn.Module):
         self.model.add_module("sigmoid" + str(len(self.layers) - 1), nn.Sigmoid()) 
         self.model = self.model.double()
     def forward(self, x):
+        # print("D", x.shape)
         try:
             return self.model(x)
         except RuntimeError as e:
@@ -194,7 +199,7 @@ class PINN_GAN(nn.Module):
         
         self.generator = Generator(self.layers_G, info_for_error=(self.x_f.shape[1],self.y_t.shape[1]))
         if enable_GAN:
-            self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
+            self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1]+1,1))
         
         # options
         self.enable_GAN = enable_GAN
@@ -209,7 +214,25 @@ class PINN_GAN(nn.Module):
             self.optimizer_PW = adam.Adam(self.generator.parameters(), lr=lr[1])
         if not self.enable_GAN and not self.enable_PW:
             self.optimizer = adam.Adam(self.generator.parameters(), lr=lr[0])
-            
+
+
+    def init_D_ref(self):
+        # clear D_ref data for exery N epochs
+        self.D_input_ref = torch.concat((self.x_t, self.y_t, torch.ones(self.x_t.shape[0], 1)), 1)
+
+        # Initial Data
+        if hasattr(self, "x0") and hasattr(self, "y0"):
+            # print(torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1).shape)
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1)))
+        # Boundary Data
+        if hasattr(self, "x_lb") and hasattr(self, "u_lb"):
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1)))
+        if hasattr(self, "x_ub") and hasattr(self, "u_ub"):
+            self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x_ub, self.u_ub, torch.ones(self.x_ub.shape[0], 1)), 1)))
+
     def save(self, epoch, n_critic):
         checkpoint = {
             "generator_model_state_dict": self.generator.model.state_dict(),
@@ -251,6 +274,7 @@ class PINN_GAN(nn.Module):
     # calculate the function h(x, t) using neural nets
     # NOTE: regard net_uv as baseline  
     def net_y(self, x):
+        print(x.shape)
         X = x.transpose(0,1)
         H = (X - self.lb) / (self.ub - self.lb) * 2.0 - 1.0 # normalize to [-1, 1]
         self.H = H.transpose(0,1)
@@ -293,7 +317,7 @@ class PINN_GAN(nn.Module):
         It should be called after each iteration. 
         '''
         boundaries = self.boundary()
-        
+        u_pred = self.generator(self.x_f)
         rho_values = []
         e = self.e[0]
         w = self.domain_weights
@@ -312,11 +336,18 @@ class PINN_GAN(nn.Module):
         # print(self.domain_weights)
         # print(self.boundary_weights)
         # print("____________________")
-        
         rho_values.append(rho)
-        
-    
-        for index, w in enumerate(self.boundary_weights):
+        signifier = (self.beta(f_pred, e)==1)
+        if torch.sum(signifier.to(torch.int))>0:
+                    # print("debug")
+            #print("self.D_input_ref.shape", self.D_input_ref.shape)
+            #print("self.x_f[signifier].shape", self.x_f[signifier].shape)
+                    # print(torch.sum((self.beta(f_update, e)==1.0).to(torch.int)))        
+            self.D_input_ref = torch.vstack(\
+                (self.D_input_ref, torch.cat((self.x_f[signifier].detach(), \
+                                        u_pred[signifier].detach(),\
+                                            torch.ones(self.x_f[signifier].shape[0], 1)), 1)))
+        for index, w in enumerate(self.boundary_weights): 
             e = self.e[index+1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
             epsilon = 1e-6 # this is added to rho because rho has a likelyhood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
@@ -383,7 +414,7 @@ class PINN_GAN(nn.Module):
     def PCS(self, r_k):
         "physics consistency scores."
         lambd_val = 10 # hyperparam for tuning
-        return torch.exp(-lambd_val*torch.abs(r_k))
+        return torch.exp(-lambd_val*torch.sum(torch.abs(r_k), dim = 1)).unsqueeze(1)
     
 
     def loss_PW(self):
@@ -424,18 +455,24 @@ class PINN_GAN(nn.Module):
         possible error of dimensionality noted.
         '''
         # TODO: call util.py for point loss
-        loss_l1 = nn.L1Loss()
-        
 
-        L_D = loss_l1(torch.zeros_like(self.D_output_domain), 
-                    self.D_output_domain) + \
-              loss_l1(torch.zeros_like(self.D_output_boundary), 
-                    self.D_output_boundary)
         # NOTE: 
         # L_T = self.loss_T()
+        loss_l1 = nn.L1Loss()
+        
+        self.y_f_pred = self.net_y(self.x_f)
+        #print(self.y_f_pred.shape)
+        self.f_pred = self.net_f(self.x_f)
+        #print(self.f_pred.shape)
+        input_D = torch.concat((self.x_f, self.y_f_pred, self.PCS(self.f_pred)), 1)
+        D_output = self.discriminator.forward(input_D)
+        L_D = loss_l1(torch.ones_like(D_output), 
+                    D_output)
+        # NOTE: 
+        L_T = self.loss_T()
 
+        return self.lambdas[1]*L_T + L_D
         # return self.lambdas[1]*L_T + L_D
-        return L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -464,8 +501,8 @@ class PINN_GAN(nn.Module):
                 loss(torch.ones_like(self.D_output_ref), self.D_output_ref)#
         loss_temp = nn.MSELoss()
         
-        print(loss_temp(loss_input, torch.zeros_like(loss_input)))
-        print(loss_temp(torch.ones_like(self.D_output_ref), self.D_output_ref))
+        #print(loss_temp(loss_input, torch.zeros_like(loss_input)))
+        #print(loss_temp(torch.ones_like(self.D_output_ref), self.D_output_ref))
 
         return loss_D_PI
 
@@ -499,7 +536,6 @@ class PINN_GAN(nn.Module):
                     self.optimizer.zero_grad()
                     loss_G = self.loss_plain()
                 if self.enable_GAN:
-                    
                     self.optimizer_G.zero_grad()
                     loss_G = self.loss_G_PI() # + self.loss_plain()
                     # loss_plain = self.loss_plain()
@@ -536,6 +572,7 @@ class PINN_GAN(nn.Module):
                 if self.no_enable or self.enable_GAN:
                     print(f'Loss_G: {loss_G.item()}')
                 if self.enable_GAN:
+                    self.init_D_ref()
                     print(f'Loss_D: {loss_Discr.item()}')
                 if self.enable_PW:
                     print(f"rho: {rho}")
@@ -543,14 +580,13 @@ class PINN_GAN(nn.Module):
                 print(f"Exact training loss: {self.loss_T()}, boundary loss: {list(map(lambda x: float(torch.sum(x**2).detach().numpy()),self.boundary()))}")
                 y_pred, f_pred = self.predict(torch.tensor(X_star, requires_grad=True))
                 y_pred = y_pred[:,0:1] # in case of multidim y
-                print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
+                print("normalized solution Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
             if epoch % 100 == 0:
                 if X_star.shape[1] == 2:#TODO dimensionality
                     plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
                     
                 # Error
                 # print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
-                    
                 print("value of f: ",np.sum(f_pred**2))
                 if self.create_saves:
                     self.save(epoch, n_critic)
