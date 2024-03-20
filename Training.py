@@ -50,7 +50,22 @@ def parse_arguments():
     enable_GAN = args.gan if args.gan is not None else True
     enable_PW = args.pointweighting if args.pointweighting is not None else True
     architecture = args.architecture if args.architecture is not None else "standard"
-    lr = (args.lr1 if args.lr1 is not None else 1e-3, args.lr2 if args.lr2 is not None else 1e-3, args.lr3 if args.lr3 is not None else 5e-3)
+    match pde:
+        case "schroedinger":
+            lr_default = (1e-3, 1e-3, 5e-3)
+        case "burgers":
+            lr_default = (1e-3, 1e-3, 5e-3)
+        case "heat":
+            lr_default = (1e-3, 1e-3, 5e-3)
+        case "poisson":
+            lr_default = (1e-3, 1e-6, 5e-6)
+        case "poissonHD":
+            pass
+        case "helmholtz":
+            lr_default = (1e-3, 1e-5, 5e-5)
+        case _:
+            print("pde not recognised")
+    lr = (args.lr1 if args.lr1 is not None else lr_default[0], args.lr2 if args.lr2 is not None else lr_default[1], args.lr3 if args.lr3 is not None else lr_default[2])
     e = args.e_value if args.e_value is not None else 5e-4
     noise = args.noise if args.noise is not None else 0.0
     N_exact = args.N_exact if args.N_exact is not None else 40
@@ -64,7 +79,12 @@ if __name__ == "__main__": # only execute when running not when possibly importi
     pde, model_name, epochs, lambdas, enable_GAN, enable_PW, architecture, lr, e, noise, N_exact, N_b = parse_arguments()
 
 print("-------------------------------------------")
-print(f"training {model_name} to learn {pde} "+f"with {architecture} architecture "+"with GAN " if enable_GAN else "" + "with PW " if enable_PW else "")
+info_string = f"training {model_name} to learn {pde} "+f"with {architecture} architecture "
+if enable_GAN:
+    info_string += "with GAN "
+if enable_PW:
+    info_string += "with PW "
+print(info_string)
 print("-------------------------------------------")
 
 
@@ -79,16 +99,52 @@ N_f = 20000 # number of data for collocation points
 # Define the physics-informed neural network
 match architecture:
     case "standard":
-        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
-        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+        match pde:
+            case "schroedinger":
+                layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [4, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "burgers":
+                layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "heat" | "poisson" | "helmholtz":
+                layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "poissonHD":
+                pass
+            case _:
+                print("pde not recognised")
     case "deep":
-        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
-        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+        match pde:
+            case "schroedinger":
+                layers_G = [2, 100, 100, 100, 100, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [4, 100, 100, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "burgers":
+                layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "heat" | "poisson" | "helmholtz":
+                layers_G = [2, 100, 100, 100, 100, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "poissonHD":
+                pass
+            case _:
+                print("pde not recognised")
     case "wide":
-        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
-        layers_D = [4, 100, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+        match pde:
+            case "schroedinger":
+                layers_G = [2, 200, 200, 200, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [4, 200, 200, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "burgers":
+                layers_G = [2, 80, 80, 80, 80, 80, 80, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 80, 80, 80, 80, 80, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "heat" | "poisson" | "helmholtz":
+                layers_G = [2, 200, 200, 200, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 200, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "poissonHD":
+                pass
+            case _:
+                print("pde not recognised")
     case "convolution":
-        layers_G, layers_D = [2, "conv", 100, 100, 100, 100, 100, 2], [4, "conv", 100, 100, 100, 100, 100, 1]
+        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 1]
 
 if pde == "":
     pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()

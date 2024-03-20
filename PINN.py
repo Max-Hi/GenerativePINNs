@@ -50,7 +50,6 @@ class Generator(nn.Module):
                 self.model.add_module("tanh" + str(l-1), nn.Tanh())
             self.model.add_module("linear" + str(len(self.layers) - 3), nn.Linear(self.layers[-3], self.layers[-2]))
             self.model.add_module("tanh" + str(len(self.layers) - 3), nn.Tanh())
-            conv_params = layers_G[1]  # Example format: [in_channels, out_channels, kernel_size, stride, padding]
         else:
             for l in range(0, len(self.layers) - 2):
                 self.model.add_module("linear" + str(l), nn.Linear(self.layers[l], self.layers[l+1]))
