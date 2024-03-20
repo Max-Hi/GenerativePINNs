@@ -23,7 +23,7 @@ def figsize(scale, nplots = 1):
 
 
 
-def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png"):
+def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png", show_figure = True):
     """
     input: output_vec and ground_truth as 1 dimensional np.array.
     X_star(grid) correspond to the input positions of both output and ground_truth.
@@ -75,9 +75,10 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
     fig.colorbar(h2, cax=cax2)
     ax2.set_title('Ground Truth')
     plt.savefig(filename)
-    plt.show()
+    if show_figure:
+        plt.show()
 
-def plot_loss(loss_history, filename):
+def plot_loss(loss_history, filename, show_figure = False):
     import seaborn as sns
     """loss_history: dictionary"""
     epoch = list(range(1, len(loss_history["epoch"])+1))
@@ -97,7 +98,8 @@ def plot_loss(loss_history, filename):
     plt.ylabel('Loss')
     plt.grid(True)
     plt.savefig(filename)
-    plt.show()
+    if show_figure:
+        plt.show()
     
 
 

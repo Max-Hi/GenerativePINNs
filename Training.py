@@ -200,18 +200,18 @@ match pde:
         if model_name != "":
             model_name = pde+"_"+model_name
         
-        if intermediary_pictures:
+        if not intermediary_pictures:
             with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
                 mat = pickle.load(f)
         
             X, T = grid # TODO if grid has more than two entries ???
 
             
-            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png")
+            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png", show_figure = False)
             # plot errors
             with open('Saves/loss_history_'+model_name+'.pkl', 'rb') as f:
                 loaded_dict = pickle.load(f)
-            plot_loss(loaded_dict,'Plots/'+model_name+'loss_history.png')
+            plot_loss(loaded_dict,'Plots/'+model_name+'loss_history.png', show_figure = False)
         # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
 

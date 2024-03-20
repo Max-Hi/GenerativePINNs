@@ -313,7 +313,7 @@ class PoissonHD_PINN_GAN(PINN_GAN):
 class Helmholtz_PINN_GAN(PINN_GAN):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, k, layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 2e-4), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4], lambdas: tuple = (1,1)):
         if model_name!="":
-            model_name = "holmholtz_"+model_name
+            model_name = "helmholtz_"+model_name
         super(Helmholtz_PINN_GAN, self).__init__(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, layers_G, layers_D, intermediary_pictures, enable_GAN, enable_PW, dynamic_lr, model_name, lr, lambdas, e, q)  
 
         self.k = k
