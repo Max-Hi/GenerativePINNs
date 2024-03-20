@@ -14,6 +14,7 @@ test*
 
 # files only kept to refer back to them, but not needed any more
 old_files/*
+oldSaves/*
 
 # virtual environment and python packages
 gnn/*

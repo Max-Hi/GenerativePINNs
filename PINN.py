@@ -3,6 +3,7 @@ import os
 import numpy as np
 import sys
 from tqdm import tqdm
+import pickle
 # from sklearn.model_selection import train_test_split
 # from scipy.integrate import odeint
 
@@ -185,11 +186,7 @@ class PINN_GAN(nn.Module):
         # options
         self.intermediary_pictures = intermediary_pictures
         self.enable_GAN = enable_GAN
-        if self.enable_GAN:
-            print("GAN")
         self.enable_PW = enable_PW
-        if self.enable_PW:
-            print("PW")
         self.dynamic_lr = dynamic_lr
         
         # Optimizer
@@ -423,6 +420,7 @@ class PINN_GAN(nn.Module):
             print("Using first component of y_star for error")
             y_star = y_star[0]
         
+        stopped_early = False
         # Training
         for epoch in tqdm(range(start_epoch, epochs)):
             # TODO done?
@@ -485,13 +483,26 @@ class PINN_GAN(nn.Module):
                     self.save(epoch, n_critic)
             if self.enable_PW:
                 if torch.sum(rho)<1e-4 and epoch>10: # summ because there are multiple rho for domain and boundary condition.
+                    stopped_early = True
                     print("early stopping")
                     if self.create_saves:
                         self.save(epoch, n_critic)
+                        with open('Saves/last_output_'+self.name+'.pkl', 'wb') as f:
+                            pickle.dump(y_pred, f)
+                        with open('Saves/loss_history_'+self.name+'.pkl', 'wb') as f:
+                            pickle.dump(self.loss_values, f)
                     break
+        # if epochs are through
+        if not stopped_early:
+            self.save(epoch, n_critic)
+            with open('Saves/last_output_'+self.name+'.pkl', 'wb') as f:
+                pickle.dump(y_pred, f)
+            with open('Saves/loss_history_'+self.name+'.pkl', 'wb') as f:
+                pickle.dump(self.loss_values, f)
                 
         if visualize:
             self.plot_loss()
+            print("t")
             self.plot_with_ground_truth(X_star, y_star, y_pred, grid)
                 
     def predict(self, X_star):
@@ -502,7 +513,7 @@ class PINN_GAN(nn.Module):
         return y_star.detach().numpy(), f_star.detach().numpy()
     
     def plot_loss(self):
-        plot_loss(self.loss_values, filename = "Plots/loss_history_" + self.name + '.png')
+        plot_loss(self.loss_values, filename = "test")#filename = "Plots/loss_history_" + self.name + '.png')
         
     def plot_with_ground_truth(self, X_star, y_star, y_pred, grid):
         """X, T: extra grid data for ground truth solution. passed for plotting. """

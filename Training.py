@@ -164,7 +164,8 @@ match pde:
     case _:
         print("pde not recognised")
 start_time = time.time()         
-model.train(500, grid, X_star, Y_star, visualize=intermediary_pictures)
+model.train(epochs, grid, X_star, Y_star, visualize=intermediary_pictures)
+print("done training")
 print('Training time: %.4f' % (time.time() - start_time))
 
 
@@ -193,19 +194,30 @@ match pde:
         for key in errors:
             print(key+": ", errors[key])
 
-    case "burgers":
+    case "burgers" | "poisson" | "helmholtz":
         y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
         
-        mat = torch.load("burgers_pred.pt")
+        if model_name != "":
+            model_name = pde+"_"+model_name
         
-        X, T = grid # TODO if grid has more than two entries ???
-
         if intermediary_pictures:
-            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
+            epoch = 0
+            epoch_candidates = list(map(lambda filename: filename.split("_")[-1].split(".")[0], [f for f in os.listdir("Saves") if f.startswith(model_name)]))
+            for candidate in epoch_candidates:
+                pass
+            print(epoch)
+            print(epoch)
+            with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
+                mat = pickle.load(f)
+        
+            X, T = grid # TODO if grid has more than two entries ???
+
+            
+            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png")
             # plot errors
-            with open('loss_history_burgers.pkl', 'rb') as f:
+            with open('Saves/loss_history_'+model_name+'.pkl', 'rb') as f:
                 loaded_dict = pickle.load(f)
-            plot_loss(loaded_dict,'loss_history_burgers.png')
+            plot_loss(loaded_dict,'Plots/'+model_name+'loss_history.png')
         # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
 
@@ -215,40 +227,8 @@ match pde:
         
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
         
-    case "poisson":
-        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-        
-        mat = torch.load("burgers_pred.pt")
-        
-        X, T = grid # TODO if grid has more than two entries ???
-
-        if intermediary_pictures:
-            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
-            # plot errors
-            with open('loss_history_burgers.pkl', 'rb') as f:
-                loaded_dict = pickle.load(f)
-            plot_loss(loaded_dict,'loss_history_burgers.png')
-        # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
-        print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
     case "poissonHD":
         pass
-    case "helmholtz":
-        y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
-        
-        mat = torch.load("burgers_pred.pt") # TODO
-        
-        X, T = grid # TODO if grid has more than two entries ???
-
-        if intermediary_pictures:
-            plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "ground_truth_comparison.png")
-            # plot errors
-            with open('loss_history_burgers.pkl', 'rb') as f:
-                loaded_dict = pickle.load(f)
-            plot_loss(loaded_dict,'loss_history_burgers.png')
-        # NOTE: formerly I used this: plt.savefig("Plots/"+model_name) Can we implement it like that again?
-        print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
-    case _:
-        print("pde not recognised")
     
 print("value of f: ",np.sum(f_pred**2))
 

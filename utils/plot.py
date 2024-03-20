@@ -80,7 +80,7 @@ def plot_with_ground_truth(output_vec, X_star, X , T,  ground_truth, ground_trut
 def plot_loss(loss_history, filename):
     import seaborn as sns
     """loss_history: dictionary"""
-    epoch = list(range(1, len(loss_history["Generator"])+1))
+    epoch = list(range(1, len(loss_history["epoch"])+1))
     # if epoch in loss_history.keys():
     #     epoch = loss_history["epoch"]
     # else:
@@ -88,7 +88,7 @@ def plot_loss(loss_history, filename):
 
     plt.figure(figsize=(8, 6))
     for label in loss_history.keys():
-        if label != "epoch" :
+        if label != "epoch" and loss_history[label] != []:
             y = np.array(loss_history[label]).flatten()
             sns.lineplot(x=epoch, y=y, label = label)
 
