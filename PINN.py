@@ -100,6 +100,13 @@ class weighted_MSELoss(nn.Module):
     def forward(self,inputs,targets,weights):
         return torch.dot(weights.flatten(),\
                           torch.sum(torch.square(inputs-targets), axis = 1).flatten())
+        
+class NLLLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self,inputs,targets):
+        return -(1/(inputs.shape[0]))*torch.sum(torch.log(inputs-targets+torch.ones_like(inputs)*1e-3))
+    
     
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
@@ -139,14 +146,14 @@ class PINN_GAN(nn.Module):
         self.y_t = torch.tensor(Y_t)
 
         self.D_input_ref = torch.concat((self.x_t, self.y_t, torch.ones(self.x_t.shape[0], 1)), 1)
-        print(self.D_input_ref.shape)
+        # print(self.D_input_ref.shape)
         self.G_input_ref = self.x_t
         # Initial Data
         if X0 is not None:
             self.x0 = torch.tensor(X0, requires_grad=True)
         if Y0 is not None:
             self.y0 = torch.tensor(Y0)
-            print(torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1).shape)
+            # print(torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1).shape)
             self.D_input_ref = torch.vstack((self.D_input_ref, 
                                             torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1)))
             self.G_input_ref = torch.vstack((self.G_input_ref, self.x0))
@@ -155,8 +162,8 @@ class PINN_GAN(nn.Module):
             self.x_lb = torch.tensor(X_lb, requires_grad=True)
         if u_lb is not None:
             self.u_lb = torch.tensor(u_lb, requires_grad = True)
-            print(torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1).shape)
-            print(self.x_lb-self.u_lb)
+            # print(torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1).shape)
+            # print(self.x_lb-self.u_lb)
             self.D_input_ref = torch.vstack((self.D_input_ref, 
                                             torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1)))
             self.G_input_ref = torch.vstack((self.G_input_ref, self.x_lb))
@@ -375,8 +382,8 @@ class PINN_GAN(nn.Module):
     
     def PCS(self, r_k):
         "physics consistency scores."
-        lambd_val = 1 # hyperparam for tuning
-        return torch.exp(-lambd_val*r_k)
+        lambd_val = 10 # hyperparam for tuning
+        return torch.exp(-lambd_val*torch.abs(r_k))
     
 
     def loss_PW(self):
@@ -425,34 +432,40 @@ class PINN_GAN(nn.Module):
               loss_l1(torch.zeros_like(self.D_output_boundary), 
                     self.D_output_boundary)
         # NOTE: 
-        L_T = self.loss_T()
+        # L_T = self.loss_T()
 
-        return self.lambdas[1]*L_T + L_D
+        # return self.lambdas[1]*L_T + L_D
+        return L_D
 
         # TODO : implement boundary data and boundary condition for GAN: ? Should be in pointwise loss where it is, right?
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
         # NOTE: Q: does it differ if optimizer not take step for loss(GAN) and loss(eq) separately?
-
 
     def loss_D_PI(self):
         """
         incorporating physics consistency scores.
         \cite{PID-GAN}
         """
-        loss = nn.L1Loss() # NOTE to be fixed as -log
+        loss = NLLLoss() # NOTE to be fixed as -log
         self.y_f_pred = self.net_y(self.x_f)
         self.ref_sol = self.net_y(self.G_input_ref)
-        
+        self.ref_sol_f = self.net_f(self.G_input_ref)
+        # print(self.PCS(self.f_pred))
         self.input_D_domain = torch.concat((self.x_f, self.y_f_pred, self.PCS(self.f_pred)), 1)
-        self.input_D_boundary = torch.concat((self.G_input_ref, self.ref_sol, self.PCS(self.ref_sol)), 1)
+        self.input_D_boundary = torch.concat((self.G_input_ref, self.ref_sol, self.PCS(self.ref_sol_f)), 1)
         self.D_output_domain = self.discriminator.forward(self.input_D_domain)
-        print(self.D_output_domain.shape)
+        # print(self.D_output_domain.shape)
+        # print(torch.sum(self.D_output_domain<0))
         self.D_output_boundary = self.discriminator.forward(self.input_D_boundary)
-        loss_D_PI = loss(self.D_output_domain.squeeze(dim=1), torch.zeros_like(self.D_output_domain).squeeze(dim=1)) +\
-                loss(self.D_output_boundary.squeeze(dim=1), torch.zeros_like(self.D_output_boundary).squeeze(dim=1)) +\
-                loss(self.D_input_ref.squeeze(dim=1), torch.ones_like(self.D_input_ref).squeeze(dim=1))
-                
-
+        self.D_output_ref = self.discriminator.forward(self.D_input_ref)
+        loss_input = torch.vstack((self.D_output_domain,self.D_output_boundary))
+        # print(torch.vstack((self.D_output_domain,self.D_output_boundary)).shape)
+        loss_D_PI = loss(loss_input, torch.zeros_like(loss_input)) +\
+                loss(torch.ones_like(self.D_output_ref), self.D_output_ref)#
+        loss_temp = nn.MSELoss()
+        
+        print(loss_temp(loss_input, torch.zeros_like(loss_input)))
+        print(loss_temp(torch.ones_like(self.D_output_ref), self.D_output_ref))
 
         return loss_D_PI
 
@@ -461,6 +474,7 @@ class PINN_GAN(nn.Module):
         """X, T: extra grid data for ground truth solution. passed for plotting. """
         self.no_enable = not self.enable_GAN and not self.enable_PW
         if len(grid) == 2:
+            
             X, T = grid
         elif len(grid) == 3:
             X, T, _ = grid #NOTE: visualisation will be less meaningfull
@@ -485,10 +499,13 @@ class PINN_GAN(nn.Module):
                     self.optimizer.zero_grad()
                     loss_G = self.loss_plain()
                 if self.enable_GAN:
+                    
                     self.optimizer_G.zero_grad()
-                    loss_G = self.loss_G_PI()
+                    loss_G = self.loss_G_PI() # + self.loss_plain()
+                    # loss_plain = self.loss_plain()
                 if self.no_enable or self.enable_GAN:
                     loss_G.backward(retain_graph=True)
+                    # loss_plain.backward(retain_graph=True)
                 if self.enable_PW:
                     self.optimizer_PW.zero_grad()
                     loss_PW = self.loss_PW()
@@ -501,9 +518,10 @@ class PINN_GAN(nn.Module):
                 if self.no_enable:
                     self.optimizer.step()
                 if self.enable_GAN:
+                    # self.optimizer.step()
                     self.optimizer_G.step()
                 # weight updates
-                if self.enable_PW == True:
+                if self.enable_PW:
                     self.optimizer_PW.step()
                     rho = self.weight_update(self.f_pred)
                     self.rho_values.append(rho)

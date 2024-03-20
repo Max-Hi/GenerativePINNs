@@ -24,8 +24,8 @@ N_f = 20000 # number of data for collocation points
 N_exact = 40 # number of data points that are passed with their exact solutions
 
 # Define the physics-informed neural network
-layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
-layers_D = [3, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+layers_G = [2, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+layers_D = [3, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
 
 pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
 
@@ -71,7 +71,7 @@ match pde:
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, \
                  layers_G= layers_G, layers_D = layers_D, \
-                    enable_GAN = True, enable_PW = False, dynamic_lr = False, model_name = model_name, nu=nu, \
+                    enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
         layers_G[0] = 3
