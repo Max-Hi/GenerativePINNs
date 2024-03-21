@@ -90,6 +90,8 @@ class Generator_RNN(nn.Module):
 # TODO
 class Generator_ResNet(nn.Module):
     def __init__(self, layers_G):
+        super(Generator_ResNet, self).__init__()
+
         return
 
 class weighted_MSELoss(nn.Module):
@@ -165,17 +167,17 @@ class PINN_GAN_burgers(nn.Module):
         # print(self.X0.shape)
         # print(self.u0.shape)
         # input for discriminator
-        self.input_D = torch.vstack((torch.cat((self.X_exact, self.u_exact), 1), \
+        self.input_D_origin = torch.vstack((torch.cat((self.X_exact, self.u_exact), 1), \
                                torch.cat((self.X_lb, self.u_lb), 1),\
                                torch.cat((self.X_ub, self.u_ub), 1),
                                torch.cat((self.X0, self.u0), 1)))
-        
+        print(self.input_D_origin.shape)
         # weights for the point weighting algorithm
         self.n_boundary_conditions = num_boundary_conditions # NOTE: how to generalize?
         self.number_collocation_points = self.x_f.shape[0]
-        self.number_boundary_points = self.x_lb.shape[0]
+        self.number_boundary_points = [self.x_exact.shape[0], self.x0.shape[0], self.x_lb.shape[0], self.x_ub.shape[0]]
         self.domain_weights = torch.full((self.number_collocation_points,), 1/self.number_collocation_points, dtype = torch.float32, requires_grad=False)
-        self.boundary_weights = [torch.full((self.number_boundary_points,), 1/self.number_boundary_points, requires_grad=False)]*self.n_boundary_conditions
+        self.boundary_weights = [torch.full((self.number_boundary_points[i],), 1/self.number_boundary_points[i], requires_grad=False) for i in range(len(self.number_boundary_points))] # *self.n_boundary_conditions
         
         
         # Sizes
@@ -274,11 +276,13 @@ class PINN_GAN_burgers(nn.Module):
 
                     
                     self.input_D = torch.vstack(\
-                        (self.input_D, torch.cat((self.x_f[self.beta(f_update, e)==1.0].unsqueeze(1), \
-                                                  self.t_f[self.beta(f_update, e)==1.0].unsqueeze(1),\
-                                                u_update[self.beta(f_update, e)==1.0].unsqueeze(1)), 1)))
+                        (self.input_D_origin, torch.cat((self.x_f[self.beta(f_update, e)==1.0].unsqueeze(1).detach(), \
+                                                  self.t_f[self.beta(f_update, e)==1.0].unsqueeze(1).detach(),\
+                                                u_update[self.beta(f_update, e)==1.0].unsqueeze(1).detach()), 1)))
+                    # print(self.input_D.shape)
+                    # self.input_D = torch.unique(self.input_D, dim = 0)
 
-
+                    # print(self.input_D.shape)
             epsilon = 1e-4 # this is added to rho because rho has a likelihood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
@@ -294,7 +298,7 @@ class PINN_GAN_burgers(nn.Module):
                 self.domain_weights = w_new
             else:
                 self.boundary_weights[index-1] = w_new
-
+        
     def loss_G(self):
         ''' 
         input dim for G: 
@@ -341,7 +345,7 @@ class PINN_GAN_burgers(nn.Module):
         #             D_output)
         # NOTE: dimensionality
         
-        return L_T + L_D
+        return L_T  #+ L_D
 
         # TODO : implement boundary data and boundary condition for GAN
         # TODO: normalize the loss/dynamic ratio of importance between 2 loss components
@@ -354,19 +358,19 @@ class PINN_GAN_burgers(nn.Module):
         self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
         self.u0_pred, _ = self.net_uv(self.x0, self.t0)
 
-        f_loss = nn.MSELoss()
+        # f_loss = nn.MSELoss()
 
-        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + \
-        f_loss(self.u_exact_pred, self.u_exact) + \
-        f_loss(self.u0_pred, self.u0) + \
-        f_loss(self.u_lb_pred, self.u_lb) + \
-        f_loss(self.u_ub_pred, self.u_ub)
-        # f_loss = weighted_MSELoss()
-        # L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
-        #         f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
-        #         f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
-        #         f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[0].to(torch.float32)) + \
-        #         f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[1].to(torch.float32))
+        # L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + \
+        # f_loss(self.u_exact_pred, self.u_exact) + \
+        # f_loss(self.u0_pred, self.u0) + \
+        # f_loss(self.u_lb_pred, self.u_lb) + \
+        # f_loss(self.u_ub_pred, self.u_ub)
+        f_loss = weighted_MSELoss()
+        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
+                f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
+                f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
+                f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[2].to(torch.float32)) + \
+                f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[3].to(torch.float32))
 
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
@@ -393,9 +397,10 @@ class PINN_GAN_burgers(nn.Module):
         # zero = False
         # one = True
         return loss_D
+    
 
 
-    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, lr_decay = 0.5, n_critic = 1):
+    def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-3, lr_D = 5e-3, lr_decay = 0.5, n_critic = 5):
         # Optimizer
         # addED easy_to_train data points to input_D as ground truth
         """A rigorous GAN may help with convergence in the later steps, 
@@ -410,13 +415,14 @@ class PINN_GAN_burgers(nn.Module):
         # Training
         loss_history = {"epoch":[], "loss_G":[], "loss_D": [], "loss_PW":[], "loss_u": []}
         
+        self.input_D = self.input_D_origin
         for epoch in tqdm(range(epochs)):
             # TODO use n_critics
         
             self.u0_pred, _  = self.net_uv(self.x0, self.t0)
             self.u_pred, self.f_u_pred = self.forward(self.x_f, self.t_f)
             self.u_exact_pred, _ = self.net_uv(self.x_exact, self.t_exact)
-            optimizer_D.zero_grad()
+            # optimizer_D.zero_grad()
             loss_Discr = self.loss_D()
             # loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             #if epoch % n_critic == 0:
@@ -432,7 +438,7 @@ class PINN_GAN_burgers(nn.Module):
                 loss_PW.backward(retain_graph=True)
                 optimizer_PW.step()      
                 optimizer_G.step()
-            optimizer_D.step()
+            # optimizer_D.step()
 
 
             # weight updates

@@ -8,6 +8,8 @@ utils/__pycache__/*
 
 # data
 *.png
+*.pkl
+*.pt
 
 # test files
 test*

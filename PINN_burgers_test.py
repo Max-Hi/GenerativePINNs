@@ -71,7 +71,7 @@ class Generator_LSTM(nn.Module):
         # print(x.unsqueeze(1).shape)
         out, _ = self.lstm(x.unsqueeze(1))#, (h0, c0))  # Forward pass through LSTM layer
         out = self.linear(out[:, -1, :]) 
-        return 
+        return out
     
 class Generator_RNN(nn.Module):
     def __init__(self, layers_G):
@@ -87,6 +87,7 @@ class Generator_RNN(nn.Module):
         out = self.linear(out[:, -1, :]) 
         return out
 
+# TODO
 class Generator_ResNet(nn.Module):
     def __init__(self, layers_G):
         return
@@ -254,7 +255,7 @@ class PINN_GAN_burgers(nn.Module):
                 e = self.e_boundary
             
             rho = torch.sum(w*((self.beta(f_update, e)==-1.0).transpose(0,1)))
-
+            # update input for D 
             epsilon = 1e-8 # this is added to rho because rho has a likelihood (that empirically takes place often) to be 0 or 1, both of which break the algorithm
             # NOTE: it is probably ok, but think about it that this makes it possible that for rho close to 0 the interior of the log below is greater than one, giving a positive alpha which would otherwise be impossible. 
             # NOTE: we think it is ok because this sign is then given into an exponential where a slight negative instead of 0 should not make a difference (?) 
@@ -330,19 +331,19 @@ class PINN_GAN_burgers(nn.Module):
         self.f_u_pred = self.net_f_uv(self.x_f, self.t_f)
         self.u0_pred, _ = self.net_uv(self.x0, self.t0)
 
-        f_loss = nn.MSELoss()
+        # f_loss = nn.MSELoss()
 
-        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + \
-        f_loss(self.u_exact_pred, self.u_exact) + \
-        f_loss(self.u0_pred, self.u0) + \
-        f_loss(self.u_lb_pred, self.u_lb) + \
-        f_loss(self.u_ub_pred, self.u_ub)
-        # f_loss = weighted_MSELoss()
-        # L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
-        #         f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
-        #         f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
-        #         f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[0].to(torch.float32)) + \
-        #         f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[1].to(torch.float32))
+        # L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred)) + \
+        # f_loss(self.u_exact_pred, self.u_exact) + \
+        # f_loss(self.u0_pred, self.u0) + \
+        # f_loss(self.u_lb_pred, self.u_lb) + \
+        # f_loss(self.u_ub_pred, self.u_ub)
+        f_loss = weighted_MSELoss()
+        L_PW = f_loss(self.f_u_pred, torch.zeros_like(self.f_u_pred), self.domain_weights.to(torch.float32)) + \
+                f_loss(self.u_exact_pred, self.u_exact, self.boundary_weights[0].to(torch.float32)) + \
+                f_loss(self.u0_pred,self.u0, self.boundary_weights[1].to(torch.float32)) + \
+                f_loss(self.u_lb_pred, self.u_lb, self.boundary_weights[0].to(torch.float32)) + \
+                f_loss(self.u_ub_pred, self.u_ub, self.boundary_weights[1].to(torch.float32))
 
         # b_loss = torch.inner(self.boundary_weights, 
         # NOTE: leaving boundary conditions blank
@@ -355,7 +356,7 @@ class PINN_GAN_burgers(nn.Module):
         (x, t, u, v)
         possible error of dimensionality noted.
         '''
-            # TODO: hstack boundary/initial with exact
+            # TODO: add already easy_to_train data as ground truth
         loss = nn.L1Loss()
         discriminator_T = self.discriminator.model(
             self.input_D
@@ -371,7 +372,7 @@ class PINN_GAN_burgers(nn.Module):
 
     def train(self, X_star, u_star, epochs = 1e-4, lr_G = 1e-2, lr_D = 5e-3, lr_decay = 0.1, n_critic = 1):
         # Optimizer
-
+        # TODO: add easy_to_train data points to input_D as ground truth
         # LSTM dynamic training rate: starting 5e-2 lr_decay = 0.7
         optimizer_G = adam.Adam(self.generator.parameters(), lr=lr_G)
         optimizer_D = adam.Adam(self.discriminator.parameters(), lr=lr_D)

@@ -4,7 +4,7 @@ import scipy.io
 from pyDOE import lhs
 import time
 import matplotlib.pyplot as plt
-from PINN_burgers_test import PINN_GAN_burgers, Discriminator, Generator
+from PINN_burgers_playground import PINN_GAN_burgers, Discriminator, Generator
 from utils.plot import plot_with_ground_truth, plot_loss
 import pickle
 torch.set_default_dtype(torch.float32)
@@ -17,6 +17,7 @@ nu = 1e-2/np.pi
 
 N0 = 50 # number of data for initial samples
 N_b = 50 # number of data for boundary samples
+N_exact = 10
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
@@ -54,7 +55,7 @@ tb = t[np.random.choice(t.shape[0], N_b, replace=False),:] # random time samples
 ti = np.zeros(N_b)
 
 # exact observations
-idx = np.random.choice(X_star.shape[0], N0, replace=False)
+idx = np.random.choice(X_star.shape[0], N_exact, replace=False)
 X_exact = X_star[idx,:]
 x_exact = X_exact[:,0]
 t_exact = X_exact[:,1]
