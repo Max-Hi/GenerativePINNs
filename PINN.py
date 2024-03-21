@@ -114,7 +114,7 @@ class NLLLoss(nn.Module):
     
     
 class PINN_GAN(nn.Module):
-    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
+    def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, u_lb, X_ub, u_ub, boundary, layers_G : list=[], layers_D: list=[], enable_GAN = True, enable_PW = True, dynamic_lr = False, enable_augmentation = True, enable_PID = True, model_name: str="", lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4],):
         """
         for any initial / boundary conditions: pass None if they are not needed.
         X0: T=0, initial condition, randomly drawn from the domain
@@ -150,7 +150,10 @@ class PINN_GAN(nn.Module):
         self.x_t = torch.tensor(X_t)
         self.y_t = torch.tensor(Y_t)
 
-        self.D_input_ref = torch.concat((self.x_t, self.y_t, torch.ones(self.x_t.shape[0], 1)), 1)
+        if enable_PID:
+            self.D_input_ref = torch.concat((self.x_t, self.y_t, torch.ones(self.x_t.shape[0], 1)), 1)
+        else:
+            self.D_input_ref = torch.concat((self.x_t, self.y_t), 1)
         # print(self.D_input_ref.shape)
         self.G_input_ref = self.x_t
         # Initial Data
@@ -159,8 +162,12 @@ class PINN_GAN(nn.Module):
         if Y0 is not None:
             self.y0 = torch.tensor(Y0)
             # print(torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1).shape)
-            self.D_input_ref = torch.vstack((self.D_input_ref, 
-                                            torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1)))
+            if enable_PID:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                                torch.cat((self.x0, self.y0, torch.ones(self.x0.shape[0], 1)), 1)))
+            else:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                                torch.cat((self.x0, self.y0), 1)))
             self.G_input_ref = torch.vstack((self.G_input_ref, self.x0))
         # Boundary Data
         if X_lb is not None:
@@ -169,8 +176,12 @@ class PINN_GAN(nn.Module):
             self.u_lb = torch.tensor(u_lb, requires_grad = True)
             # print(torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1).shape)
             # print(self.x_lb-self.u_lb)
-            self.D_input_ref = torch.vstack((self.D_input_ref, 
-                                            torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1)))
+            if enable_PID:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                                torch.cat((self.x_lb, self.u_lb, torch.ones(self.x_lb.shape[0], 1)), 1)))
+            else:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                                torch.cat((self.x_lb, self.u_lb), 1)))
             self.G_input_ref = torch.vstack((self.G_input_ref, self.x_lb))
         if X_ub is not None:
             self.x_ub = torch.tensor(X_ub, requires_grad=True)
@@ -185,8 +196,6 @@ class PINN_GAN(nn.Module):
         
         # Collocation Points
         self.x_f = torch.tensor(X_f, requires_grad=True)
-        
-
         
         # Bounds
         self.lb = torch.tensor(boundary[0:1, :].T)
@@ -205,6 +214,8 @@ class PINN_GAN(nn.Module):
         self.enable_GAN = enable_GAN
         self.enable_PW = enable_PW
         self.dynamic_lr = dynamic_lr
+        self.enable_augmentation = enable_augmentation
+        self.enable_PID = enable_PID
         
         # Optimizer
         if self.enable_GAN:
@@ -338,7 +349,7 @@ class PINN_GAN(nn.Module):
         # print("____________________")
         rho_values.append(rho)
         signifier = (self.beta(f_pred, e)==1)
-        if torch.sum(signifier.to(torch.int))>0:
+        if torch.sum(signifier.to(torch.int))>0 and self.enable_augmentation:
                     # print("debug")
             #print("self.D_input_ref.shape", self.D_input_ref.shape)
             #print("self.x_f[signifier].shape", self.x_f[signifier].shape)
@@ -522,14 +533,17 @@ class PINN_GAN(nn.Module):
             y_star = y_star[0]
         
         # Training
-
+        self.init_D_ref()
         for epoch in tqdm(range(start_epoch, epochs)):
             # TODO done?
             # self.y0_pred = self.net_y(self.x0)
             self.f_pred = self.net_f(self.x_f)
             if self.enable_GAN:
                 self.optimizer_D.zero_grad()
-                loss_Discr = self.loss_D_PI()
+                if self.enable_PID:
+                    loss_Discr = self.loss_D_PI()
+                else:
+                    loss_Discr = self.loss_D()
                 loss_Discr.backward(retain_graph=True) # retain_graph: tp release tensor for future use
             if epoch % n_critic == 0:
                 if self.no_enable:
@@ -537,7 +551,10 @@ class PINN_GAN(nn.Module):
                     loss_G = self.loss_plain()
                 if self.enable_GAN:
                     self.optimizer_G.zero_grad()
-                    loss_G = self.loss_G_PI() # + self.loss_plain()
+                    if not self.enable_PID:
+                        loss_G = self.loss_G() # + self.loss_plain()
+                    else:
+                        loss_G = self.loss_G_PI()
                     # loss_plain = self.loss_plain()
                 if self.no_enable or self.enable_GAN:
                     loss_G.backward(retain_graph=True)
@@ -571,7 +588,7 @@ class PINN_GAN(nn.Module):
                 print(f'Epoch: {epoch}')
                 if self.no_enable or self.enable_GAN:
                     print(f'Loss_G: {loss_G.item()}')
-                if self.enable_GAN:
+                if self.enable_GAN and self.enable_augmentation:
                     self.init_D_ref()
                     print(f'Loss_D: {loss_Discr.item()}')
                 if self.enable_PW:
