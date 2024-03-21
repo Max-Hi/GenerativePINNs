@@ -258,7 +258,7 @@ class PINN_GAN(nn.Module):
             "discriminator_optimizer_state_dict": self.optimizer_D.state_dict(),
             "pointwise_optimizer_state_dict": self.optimizer_PW.state_dict(),
             "regular_optimizer_state_dict": self.optimizer.state_dict(),
-            "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW},
+            "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW, "augmentation": self.enable_augmentation, "PID": self.enable_PID},
             "epoch": epoch,
             "rho_values": self.rho_values,
             "loss_values": self.loss_values,
@@ -614,8 +614,8 @@ class PINN_GAN(nn.Module):
                 print("normalized solution Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
             if epoch % 100 == 0:
                 if X_star.shape[1] == 2:#TODO dimensionality
-                    plot_with_ground_truth(y_pred, X_star, X, T, y_star , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
-                    
+                    plot_with_ground_truth(y_pred, X_star, X, T, y_star[:, 0:1] , ground_truth_ref=False, ground_truth_refpts=[], filename = self.name+".png") # TODO y_star dimensionality
+
                 # Error
                 # print("y Error: ", np.linalg.norm(y_star-y_pred,2)/np.linalg.norm(y_star,2))
                 print("value of f: ",np.sum(f_pred**2))
