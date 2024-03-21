@@ -187,8 +187,13 @@ class PINN_GAN(nn.Module):
             self.x_ub = torch.tensor(X_ub, requires_grad=True)
         if u_ub is not None:
             self.u_ub = torch.tensor(u_ub, requires_grad = True)
-            self.D_input_ref = torch.vstack((self.D_input_ref, 
+            if enable_PID:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
                                             torch.cat((self.x_ub, self.u_ub, torch.ones(self.x_ub.shape[0], 1)), 1)))
+            else:
+                self.D_input_ref = torch.vstack((self.D_input_ref, 
+                                            torch.cat((self.x_ub, self.u_ub), 1)))
+            
             self.G_input_ref = torch.vstack((self.G_input_ref, self.x_ub))
         # exact reference points for D/G input
         
@@ -350,14 +355,24 @@ class PINN_GAN(nn.Module):
         rho_values.append(rho)
         signifier = (self.beta(f_pred, e)==1)
         if torch.sum(signifier.to(torch.int))>0 and self.enable_augmentation:
+            if self.enable_PID:
                     # print("debug")
             #print("self.D_input_ref.shape", self.D_input_ref.shape)
             #print("self.x_f[signifier].shape", self.x_f[signifier].shape)
                     # print(torch.sum((self.beta(f_update, e)==1.0).to(torch.int)))        
-            self.D_input_ref = torch.vstack(\
+                self.D_input_ref = torch.vstack(\
                 (self.D_input_ref, torch.cat((self.x_f[signifier].detach(), \
                                         u_pred[signifier].detach(),\
                                             torch.ones(self.x_f[signifier].shape[0], 1)), 1)))
+                self.G_input_ref = torch.vstack(\
+                (self.G_input_ref, self.x_f[signifier].detach()))
+            else:
+                self.D_input_ref =  torch.vstack(\
+                (self.D_input_ref, torch.cat((self.x_f[signifier].detach(), \
+                                        u_pred[signifier].detach()), 1)))
+                self.G_input_ref = torch.vstack(\
+                (self.G_input_ref, self.x_f[signifier].detach()))
+            
         for index, w in enumerate(self.boundary_weights): 
             e = self.e[index+1]
             rho = torch.sum(w*(self.beta(boundaries[index], e)==-1.0))
@@ -409,7 +424,7 @@ class PINN_GAN(nn.Module):
         
         self.y_f_pred = self.net_y(self.x_f)
         
-        input_D = torch.concat((self.x_f, self.y_f_pred), 1)
+        input_D = torch.concat((self.y_f_pred, self.y_f_pred), 1)
         D_output = self.discriminator.forward(input_D)
         L_D = loss_l1(torch.ones_like(D_output), 
                     D_output)
@@ -446,17 +461,16 @@ class PINN_GAN(nn.Module):
         possible error of dimensionality noted -> transpose
         '''
         #TODO 
-        loss = nn.L1Loss()
-        self.y_t_pred = self.net_y(self.x_t)
-        discriminator_T = self.discriminator.forward(
-            torch.concat((self.x_t, self.y_t), 1)
-            )
+        loss = NLLLoss()
+      
+        self.y_ref_pred = self.net_y(self.G_input_ref)
+        discriminator_T = self.discriminator.forward(self.D_input_ref)
         
         discriminator_L = self.discriminator.forward(
-            torch.concat((self.x_t, self.y_t_pred), 1)
+            torch.concat((self.G_input_ref, self.y_ref_pred), 1)
             )
-        loss_D = loss(discriminator_L, torch.zeros_like(discriminator_L)) + \
-                loss(discriminator_T, torch.ones_like(discriminator_T))
+        loss_D = loss(discriminator_L, torch.ones_like(discriminator_L)) + \
+                loss(discriminator_T, torch.zeros_like(discriminator_T))
         return loss_D
 
     def loss_G_PI(self):
@@ -494,7 +508,7 @@ class PINN_GAN(nn.Module):
         incorporating physics consistency scores.
         \cite{PID-GAN}
         """
-        loss = NLLLoss() # NOTE to be fixed as -log
+        loss = NLLLoss() # NOTE -log
         self.y_f_pred = self.net_y(self.x_f)
         self.ref_sol = self.net_y(self.G_input_ref)
         self.ref_sol_f = self.net_f(self.G_input_ref)
@@ -510,7 +524,7 @@ class PINN_GAN(nn.Module):
         # print(torch.vstack((self.D_output_domain,self.D_output_boundary)).shape)
         loss_D_PI = loss(loss_input, torch.zeros_like(loss_input)) +\
                 loss(torch.ones_like(self.D_output_ref), self.D_output_ref)#
-        loss_temp = nn.MSELoss()
+        # loss_temp = nn.MSELoss()
         
         #print(loss_temp(loss_input, torch.zeros_like(loss_input)))
         #print(loss_temp(torch.ones_like(self.D_output_ref), self.D_output_ref))
