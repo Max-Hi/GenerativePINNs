@@ -23,7 +23,3 @@ oldSaves/*
 
 # virtual environment and python packages
 gnn/*
-
-# Plotting.ipynb
-Plotting.ipynb
-plotting.py
