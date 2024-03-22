@@ -9,8 +9,9 @@ utils/__pycache__/*
 # data
 *.png
 
-# test files
+# test & helper files
 test*
+helper*
 
 # files only kept to refer back to them, but not needed any more
 old_files/*
