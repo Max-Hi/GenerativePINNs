@@ -118,7 +118,7 @@ class weighted_MSELoss(nn.Module):
     
 class PINN_GAN(nn.Module):
     def __init__(self, X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, 
-                 layers_G : list=[], layers_D: list=[], intermediary_pictures=True, enable_GAN = True, enable_PW = True, 
+                 layers_G : list=[], layers_D: list=[], enable_lstm=False, intermediary_pictures=True, enable_GAN = True, enable_PW = True, 
                  dynamic_lr = False, model_name: str="", 
                  lr: tuple=(1e-3, 1e-3, 5e-3), lambdas: tuple = (1,1), e: list=[2e-2, 5e-4], q: list=[1e-4, 1e-4]):
         """
@@ -179,7 +179,12 @@ class PINN_GAN(nn.Module):
             self.layers_D = layers_D
         self.layers_G = layers_G
         
-        self.generator = Generator(self.layers_G, info_for_error=(self.x_f.shape[1],self.y_t.shape[1]))
+        self.enable_LSTM = enable_lstm
+        
+        if self.enable_LSTM:
+            self.generator = Generator_LSTM(self.layers_G)
+        else:
+            self.generator = Generator(self.layers_G, info_for_error=(self.x_f.shape[1],self.y_t.shape[1]))
         if enable_GAN:
             self.discriminator = Discriminator(self.layers_D, info_for_error=(self.y_t.shape[1]+self.x_f.shape[1],1))
         
@@ -202,29 +207,32 @@ class PINN_GAN(nn.Module):
         self.intermediary_pictures = intermediary_pictures
             
     def save(self, epoch, n_critic):
-        checkpoint = {
-            "generator_model_state_dict": self.generator.model.state_dict(),
-            "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW},
-            "epoch": epoch,
-            "loss_values": self.loss_values,
-            "n_critic": n_critic,
-        }
-        
-        # conditional add ons
-        if self.enable_GAN:
-            checkpoint["discriminator_model_state_dict"] = self.discriminator.model.state_dict()
-            checkpoint["generator_optimizer_state_dict"] = self.optimizer_G.state_dict()
-            checkpoint["discriminator_optimizer_state_dict"] = self.optimizer_D.state_dict()
+        if self.enable_LSTM:
+            print("Carefull! No intermediate saving because this is not implemented yet for LSTM Generators.")
+        else:
+            checkpoint = {
+                "generator_model_state_dict": self.generator.model.state_dict(),
+                "activations": {"GAN": self.enable_GAN, "PW": self.enable_PW},
+                "epoch": epoch,
+                "loss_values": self.loss_values,
+                "n_critic": n_critic,
+            }
             
-        if self.enable_PW:
-            checkpoint["weights"] = [self.domain_weights]+self.boundary_weights
-            checkpoint["pointwise_optimizer_state_dict"] = self.optimizer_PW.state_dict()
-            checkpoint["rho_values"] = self.rho_values,
-        if self.no_enable:
-            checkpoint["regular_optimizer_state_dict"] = self.optimizer.state_dict()
+            # conditional add ons
+            if self.enable_GAN:
+                checkpoint["discriminator_model_state_dict"] = self.discriminator.model.state_dict()
+                checkpoint["generator_optimizer_state_dict"] = self.optimizer_G.state_dict()
+                checkpoint["discriminator_optimizer_state_dict"] = self.optimizer_D.state_dict()
+                
+            if self.enable_PW:
+                checkpoint["weights"] = [self.domain_weights]+self.boundary_weights
+                checkpoint["pointwise_optimizer_state_dict"] = self.optimizer_PW.state_dict()
+                checkpoint["rho_values"] = self.rho_values,
+            if self.no_enable:
+                checkpoint["regular_optimizer_state_dict"] = self.optimizer.state_dict()
+                
             
-        
-        torch.save(checkpoint, "Saves/"+self.name+"_"+str(epoch)+".pth")
+            torch.save(checkpoint, "Saves/"+self.name+"_"+str(epoch)+".pth")
     
     def load(self, checkpoint_path):
         if checkpoint_path is None:

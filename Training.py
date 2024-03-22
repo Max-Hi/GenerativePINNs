@@ -30,7 +30,7 @@ def parse_arguments():
     parser.add_argument("--lambda2", required=False, type=float, help="Lambda2 for the model.")
     parser.add_argument("-g", "--gan", type=lambda x: (str(x).lower() == 'y'), help="Enable or disable the GAN use.")
     parser.add_argument("-w", "--pointweighting", type=lambda x: (str(x).lower() == 'y'), help="Enable or disable the Point Weighting (PW) use.")
-    parser.add_argument("-a", "--architecture", type=str, help="choose architecture. Should be one of: standard, deep, wide, convolution")
+    parser.add_argument("-a", "--architecture", type=str, help="choose architecture. Should be one of: standard, deep, wide, convolution, lstm")
     parser.add_argument("--lr1", required=False, type=float, help="Learning rate 1.")
     parser.add_argument("--lr2", required=False, type=float, help="Learning rate 2.")
     parser.add_argument("--lr3", required=False, type=float, help="Learning rate 3.")
@@ -91,6 +91,7 @@ N0 = 50 # number of data for initial samples
 N_f = 20000 # number of data for collocation points
 
 # Define the physics-informed neural network
+lstm = False
 match architecture:
     case "standard":
         match pde:
@@ -138,7 +139,23 @@ match architecture:
             case _:
                 print("pde not recognised")
     case "convolution":
-        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 1]
+        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 1]
+    case "lstm":
+        lstm = True
+        match pde:
+            case "schroedinger":
+                layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [4, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "burgers":
+                layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "heat" | "poisson" | "helmholtz":
+                layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+                layers_D = [3, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+            case "poissonHD":
+                pass
+            case _:
+                print("pde not recognised")
 
 if pde == "":
     pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
@@ -172,7 +189,7 @@ match pde:
         layers_G[-1] = 2
         layers_D[0] = 4
         model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 1e-4, 1e-4], q = [10e-4]+[5e-3, 5e-3, 5e-3])
     case "burgers":
@@ -182,7 +199,7 @@ match pde:
         nu = 1e-2/np.pi 
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
@@ -190,7 +207,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 4
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6], q = [10e-4]+[5e-5])
     case "poisson":
@@ -198,7 +215,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
@@ -208,7 +225,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, \
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
