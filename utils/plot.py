@@ -102,11 +102,11 @@ def plot_loss(loss_history, filename, show_figure = False):
         plt.show()
     
 
-def plot_loss_comparison(model_list: list, model_label_list: list, loss_name: str, filename: str, show_figure = False):
+def plot_loss_comparison(model_list: list, model_label_list: list, filename: str, show_figure = False):
     import seaborn as sns
     """
     model_list: list of loss_history dictionary (Example: [model1.loss_values, model2.loss_values])
-    model_label_list: list of labels for each model (Example: ["","PW","GAN", "PW+GAN"])
+    model_label_list: list of labels for each model (Example: ["None","PW","GAN", "PW+GAN"])
     loss_name: name of the loss function (Example: "Generator" / "Discriminator"/ "Pointwise")
     filename: name of the file to save the plot (Example: "loss_comparison.png")
     show_figure: boolean to show the plot in the notebook
@@ -114,12 +114,14 @@ def plot_loss_comparison(model_list: list, model_label_list: list, loss_name: st
     epoch = list(range(1, len(model_list[0]["epoch"])+1))
     plt.figure(figsize=(8, 6))
     for i in range(len(model_list)):
-        y = np.array(model_list[i][loss_name]).flatten()
+        if len(model_list[i]['Pointwise']) != 0:
+            y = np.array(model_list[i]['Pointwise']).flatten()
+        else:
+            y = np.array(model_list[i]['Generator']).flatten()
         sns.lineplot(x=epoch, y=y, label = model_label_list[i])
-        
-    plt.title(loss_name +'Loss Descent Over Training')
+    plt.title('Loss Descent Over Training')
     plt.xlabel('epochs')
-    plt.ylabel(loss_name +'Loss')
+    plt.ylabel('Loss')
     plt.savefig(filename)
     if show_figure:
         plt.show()  
