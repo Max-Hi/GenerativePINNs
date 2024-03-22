@@ -204,7 +204,7 @@ match pde:
         layers_G[-1] = 2
         layers_D[0] = 4
         model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 1e-4, 1e-4], q = [10e-4]+[5e-3, 5e-3, 5e-3])
     case "burgers":
@@ -214,7 +214,7 @@ match pde:
         nu = 1e-2/np.pi 
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
@@ -222,7 +222,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 4
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6], q = [10e-4]+[5e-5])
     case "poisson":
@@ -230,7 +230,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
@@ -240,7 +240,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
