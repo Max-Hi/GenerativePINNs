@@ -249,7 +249,7 @@ class PINN_GAN(nn.Module):
         if self.enable_GAN:
             self.discriminator.model.load_state_dict(checkpoint["discriminator_model_state_dict"])
             self.optimizer_D.load_state_dict(checkpoint["discriminator_optimizer_state_dict"])
-        self.optimizer_G.load_state_dict(checkpoint["generator_optimizer_state_dict"])
+            self.optimizer_G.load_state_dict(checkpoint["generator_optimizer_state_dict"])
         if self.enable_PW:
             self.optimizer_PW.load_state_dict(checkpoint["pointwise_optimizer_state_dict"])
             self.domain_weights = checkpoint["weights"][0]

@@ -87,11 +87,26 @@ print("-------------------------------------------")
 
 
 # Hyperparameters
+match pde:
+    case "schroedinger":
+        layers_G = [2, 100, 100, 100, 100, 2] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [4, 100, 100, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "burgers":
+        layers_G = [2, 20, 20, 20, 20, 20, 20, 20, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [3, 20, 20, 20, 20, 20, 20, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "heat" | "poisson" | "helmholtz":
+        layers_G = [2, 100, 100, 100, 100, 1] # first entry should be X.shape[0], last entry should be Y.shape[0]
+        layers_D = [3, 100, 1] # input should be X.shape[0]+Y.shape[0], output 1.
+    case "poissonHD":
+        pass
+    case _:
+        print("pde not recognised")
 N0 = 50 # number of data for initial samples
+# N_b = 50 # number of data for boundary samples
 N_f = 20000 # number of data for collocation points
+# N_exact = 40 # number of data points that are passed with their exact solutions
 
 # Define the physics-informed neural network
-lstm = False
 match architecture:
     case "standard":
         match pde:
@@ -139,7 +154,7 @@ match architecture:
             case _:
                 print("pde not recognised")
     case "convolution":
-        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 1]
+        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 1]
     case "lstm":
         lstm = True
         match pde:
@@ -189,7 +204,7 @@ match pde:
         layers_G[-1] = 2
         layers_D[0] = 4
         model = Schroedinger_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 1e-4, 1e-4], q = [10e-4]+[5e-3, 5e-3, 5e-3])
     case "burgers":
@@ -199,7 +214,7 @@ match pde:
         nu = 1e-2/np.pi 
         # NOTE: added extra X, T for plotting
         model = Burgers_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, nu=nu, \
                         lambdas = [1,1], lr = (1e-3, 1e-3, 5e-3), e = [5e-4]+[2e-2, 5e-4, 5e-4], q = [10e-4]+[10e-4, 10e-4, 10e-4])
     case "heat":
@@ -207,7 +222,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 4
         model = Heat_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6], q = [10e-4]+[5e-5])
     case "poisson":
@@ -215,7 +230,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Poisson_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-6, 5e-6, 5e-6, 5e-6], q = [10e-4]+[5e-5, 5e-5, 5e-5, 5e-5])
     case "poissonHD":
@@ -225,7 +240,7 @@ match pde:
         layers_G[-1] = 1
         layers_D[0] = 3
         model = Helmholtz_PINN_GAN(X0, Y0, X_f, X_t, Y_t, X_lb, X_ub, boundary, \
-                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm,\
+                 layers_G= layers_G, layers_D = layers_D, enable_lstm=lstm\
                     intermediary_pictures=intermediary_pictures, enable_GAN = enable_GAN, enable_PW = enable_PW, dynamic_lr = False, model_name = model_name, k=2*np.pi, \
                         lambdas = lambdas, lr = lr, e = [e]+[5e-4, 5e-4, 5e-4, 5e-4], q = [10e-4]+[6e-5, 6e-5, 6e-5, 6e-5])
     case _:
@@ -245,11 +260,19 @@ match pde:
         u_pred, v_pred = y_pred[:,0:1], y_pred[:,1:2]
         h_pred = np.sqrt(u_pred**2 + v_pred**2)
 
-        if intermediary_pictures:
-            plt.plot(np.linspace(0,len(u_star),len(u_star)),u_star, label="true")
-            plt.plot(np.linspace(0,len(u_pred),len(u_pred)),u_pred, label="predicted")
-            plt.legend()
-            plt.savefig("Plots/"+model_name)
+        if model_name != "":
+            model_name = pde+"_"+model_name
+        
+        if not intermediary_pictures:
+            with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
+                mat = pickle.load(f)
+        
+            X, T = grid 
+            plot_with_ground_truth(mat, X_star, X, T, h_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png", show_figure = False)
+            # plot errors
+            with open('Saves/loss_history_'+model_name+'.pkl', 'rb') as f:
+                loaded_dict = pickle.load(f)
+            plot_loss(loaded_dict,'Plots/'+model_name+'loss_history.png', show_figure = False)
         
         # Errors
         errors = {
@@ -285,6 +308,32 @@ match pde:
     case "heat":
         # Predictions
         y_pred, f_pred = model.predict(torch.tensor(X_star, requires_grad=True))
+        
+        if model_name != "":
+            model_name = pde+"_"+model_name
+        
+        if not intermediary_pictures:
+            with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
+                mat = pickle.load(f)
+            
+            X1, X2, _ = grid #NOTE: visualisation will be less meaningfull
+            
+            nX1, nX2, nT = X1.shape
+            # nPixels = X1.shape[0]*X1.shape[1]
+            for t in range(0, nT, 10):
+                x1 = np.linspace(boundary[0, 0], boundary[1, 0], nX1, endpoint = True)[None, :]
+                x2 = np.linspace(boundary[0, 1], boundary[1, 1], nX2, endpoint = True)[None, :]
+
+                x1, x2 =np.meshgrid(x1, x2)
+                x_star_m = np.hstack((x1.flatten()[:, None], x2.flatten()[:, None]))
+                y_pred_m = y_pred.reshape(X1.shape)[:,:,t]
+                y_star_m = Y_star.reshape(X1.shape)[:,:,t]
+                plot_with_ground_truth(y_pred_m, x_star_m, x1, x2, y_star_m, ground_truth_ref=False, 
+                                       ground_truth_refpts=[], filename = "Plots/heat_map_" + model_name + "_" + str(t) +".png") # TODO y_star dimensionality
+                # plot errors
+            with open('Saves/loss_history_'+model_name+'.pkl', 'rb') as f:
+                loaded_dict = pickle.load(f)
+            plot_loss(loaded_dict,'Plots/'+model_name+'loss_history.png', show_figure = False)
         
         print("Error y: ", np.linalg.norm(Y_star-y_pred,2)/np.linalg.norm(Y_star,2))
         
