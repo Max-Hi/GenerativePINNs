@@ -107,6 +107,7 @@ N_f = 20000 # number of data for collocation points
 # N_exact = 40 # number of data points that are passed with their exact solutions
 
 # Define the physics-informed neural network
+lstm = False
 match architecture:
     case "standard":
         match pde:
@@ -154,7 +155,7 @@ match architecture:
             case _:
                 print("pde not recognised")
     case "convolution":
-        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 1]
+        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 1]
     case "lstm":
         lstm = True
         match pde:
