@@ -60,7 +60,8 @@ def parse_arguments():
         case "helmholtz":
             lr_default = (1e-3, 1e-5, 5e-5)
         case _:
-            print("pde not recognised")
+            lr_default = (1e-3, 1e-3, 5e-3)
+            print("learning rate is chosen to be "+str(lr_default)+" because pde is not yet specified. Please use argparser to change.")
     lr = (args.lr1 if args.lr1 is not None else lr_default[0], args.lr2 if args.lr2 is not None else lr_default[1], args.lr3 if args.lr3 is not None else lr_default[2])
     e = args.e_value if args.e_value is not None else 5e-4
     noise = args.noise if args.noise is not None else 0.0
@@ -106,7 +107,26 @@ N0 = 50 # number of data for initial samples
 N_f = 20000 # number of data for collocation points
 # N_exact = 40 # number of data points that are passed with their exact solutions
 
+
+if pde == "":
+    pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
+    intermediary_pictures = True # clearly not running in automated mode
+    match pde:
+        case "schroedinger" | "burgers" | "heat":
+            lr = (1e-3, 1e-3, 5e-3)
+        case "poisson":
+            lr = (1e-3, 1e-6, 5e-6)
+        case "poissonHD":
+            pass
+        case "helmholtz":
+            lr = (1e-3, 1e-5, 5e-5)
+        case _:
+            print("pde not recognized")
+else:
+    intermediary_pictures = False  
+
 # Define the physics-informed neural network
+lstm = False
 match architecture:
     case "standard":
         match pde:
@@ -154,7 +174,7 @@ match architecture:
             case _:
                 print("pde not recognised")
     case "convolution":
-        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 1]
+        layers_G, layers_D = [2, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 2], [4, "conv", 80, 80, 80, 80, 80, 80, 80, 80, 80, 1]
     case "lstm":
         lstm = True
         match pde:
@@ -171,12 +191,6 @@ match architecture:
                 pass
             case _:
                 print("pde not recognised")
-
-if pde == "":
-    pde = questionary.select("Which pde do you want to choose?", choices=["burgers", "heat", "schroedinger", "poisson", "poissonHD", "helmholtz"]).ask()
-    intermediary_pictures = True # clearly not running in automated mode
-else:
-    intermediary_pictures = False  
 
 # Load data from simulated dataset
 data = scipy.io.loadmat('./Data/'+pde+'.mat')
