@@ -25,4 +25,5 @@ oldSaves/*
 gnn/*
 
 # personal plotting files
-Plotting.ipynb
+plotting.py
+metrics.ipynb

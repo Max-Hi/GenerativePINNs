@@ -278,11 +278,8 @@ match pde:
             model_name = pde+"_"+model_name
         
         if not intermediary_pictures:
-            with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
-                mat = pickle.load(f)
-        
             X, T = grid 
-            plot_with_ground_truth(mat, X_star, X, T, h_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png", show_figure = False)
+            plot_with_ground_truth(h_pred, X_star, X, T, h_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png", show_figure = False)
             # plot errors
             with open('Saves/loss_history_'+model_name+'.pkl', 'rb') as f:
                 loaded_dict = pickle.load(f)
@@ -308,8 +305,7 @@ match pde:
             with open("Saves/last_output_"+model_name+".pkl", "rb") as f:
                 mat = pickle.load(f)
         
-            X, T = grid # TODO if grid has more than two entries ???
-
+            X, T = grid
             
             plot_with_ground_truth(mat, X_star, X, T, Y_star, ground_truth_ref=False, ground_truth_refpts=[], filename = "Plots/"+model_name+"ground_truth_comparison.png", show_figure = False)
             # plot errors
