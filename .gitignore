@@ -23,3 +23,6 @@ oldSaves/*
 
 # virtual environment and python packages
 gnn/*
+
+# personal plotting files
+Plotting.ipynb
